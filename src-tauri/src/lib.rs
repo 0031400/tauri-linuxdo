@@ -1,14 +1,125 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use serde::Serialize;
+use tauri::{
+    Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    webview::{PageLoadEvent, Url},
+};
+
+const LOGIN_WINDOW_LABEL: &str = "linuxdo-login";
+const LOGIN_URL: &str = "https://linux.do/login";
+const BASE_URL: &str = "https://linux.do/";
+
+#[derive(Clone, Serialize)]
+struct LoginStatusPayload {
+    url: String,
+    logged_in: bool,
+}
+
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+async fn open_login_webview(
+    app: tauri::AppHandle,
+    webview_window: WebviewWindow,
+) -> Result<(), String> {
+    if let Some(existing) = app.get_webview_window(LOGIN_WINDOW_LABEL) {
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    let main_label = webview_window.label().to_string();
+    let login_url = Url::parse(LOGIN_URL).map_err(|error| error.to_string())?;
+    let app_handle = app.clone();
+
+    WebviewWindowBuilder::new(&app, LOGIN_WINDOW_LABEL, WebviewUrl::External(login_url))
+        .title("Linux.do 登录")
+        .inner_size(460.0, 820.0)
+        .resizable(true)
+        .focused(true)
+        .on_page_load(move |window, payload| {
+            let url = payload.url().to_string();
+
+            let _ = app_handle.emit_to(
+                main_label.clone(),
+                "linuxdo-login-status",
+                LoginStatusPayload {
+                    url: url.clone(),
+                    logged_in: false,
+                },
+            );
+
+            if matches!(payload.event(), PageLoadEvent::Finished) && is_logged_in_url(&url) {
+                let _ = app_handle.emit_to(
+                    main_label.clone(),
+                    "linuxdo-login-status",
+                    LoginStatusPayload {
+                        url,
+                        logged_in: true,
+                    },
+                );
+                let _ = window.close();
+            }
+        })
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_linuxdo_cookie_header(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let cookie_url = Url::parse(BASE_URL).map_err(|error| error.to_string())?;
+
+    let webview = if let Some(login_window) = app.get_webview_window(LOGIN_WINDOW_LABEL) {
+        login_window
+    } else if let Some(main_window) = app.get_webview_window("main") {
+        main_window
+    } else {
+        return Err("main window not found".to_string());
+    };
+
+    let cookies = tauri::async_runtime::spawn_blocking(move || webview.cookies_for_url(cookie_url))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())?;
+
+    if cookies.is_empty() {
+        return Ok(None);
+    }
+
+    let header = cookies
+        .into_iter()
+        .map(|cookie| format!("{}={}", cookie.name(), cookie.value()))
+        .collect::<Vec<_>>()
+        .join("; ");
+
+    if header.trim().is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(header))
+    }
+}
+
+fn is_logged_in_url(url: &str) -> bool {
+    let prefixes = [
+        "https://linux.do/latest",
+        "https://linux.do/new",
+        "https://linux.do/unread",
+        "https://linux.do/my",
+        "https://linux.do/u/",
+        "https://linux.do/c/",
+        "https://linux.do/t/",
+    ];
+
+    prefixes.iter().any(|prefix| url.starts_with(prefix))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            open_login_webview,
+            get_linuxdo_cookie_header
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
