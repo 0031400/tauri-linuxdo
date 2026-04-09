@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { Button, Card, CardContent, Chip, CircularProgress } from "@mui/material";
+import { Button, Card, CardContent, CircularProgress } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   fetchTopicCategories,
@@ -28,13 +28,13 @@ export function DesktopShell() {
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [sidebarWidthReady, setSidebarWidthReady] = useState(false);
   const draggingSidebarRef = useRef(false);
-  const [categoryOpen, setCategoryOpen] = useState(true);
-  const [categories, setCategories] = useState<TopicCategory[]>([]);
   const [initializing, setInitializing] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
   const [checkingSession, setCheckingSession] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [openingLogin, setOpeningLogin] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(true);
+  const [categories, setCategories] = useState<TopicCategory[]>([]);
 
   useEffect(() => {
     if (isMinimal) return;
@@ -167,10 +167,11 @@ export function DesktopShell() {
         setCategories([]);
       }
     };
+
     const handleSessionChange = () => {
       void (async () => {
-        const nextLoggedIn = await refreshSession();
-        if (nextLoggedIn) {
+        const ok = await refreshSession();
+        if (ok) {
           await loadCategories();
         } else {
           setCategories([]);
@@ -183,8 +184,8 @@ export function DesktopShell() {
     void (async () => {
       try {
         await hydrateLinuxDoCookieHeader();
-        const nextLoggedIn = await refreshSession();
-        if (nextLoggedIn) {
+        const ok = await refreshSession();
+        if (ok) {
           await loadCategories();
         } else {
           setCategories([]);
@@ -193,12 +194,13 @@ export function DesktopShell() {
         setInitializing(false);
       }
     })();
+
     window.addEventListener(SESSION_EVENT, handleSessionChange);
     void listen<LoginStatusPayload>("linuxdo-login-status", async (event) => {
       await setLinuxDoCookieHeader(event.payload.cookie_header);
       setOpeningLogin(false);
-      const nextLoggedIn = await refreshSession();
-      if (nextLoggedIn) {
+      const ok = await refreshSession();
+      if (ok) {
         await loadCategories();
       } else {
         setCategories([]);
@@ -237,13 +239,6 @@ export function DesktopShell() {
     }
   };
 
-  const navItems = [
-    { to: "/topics", label: "文章" },
-    { to: "/messages", label: "消息" },
-    { to: "/notifications", label: "通知" },
-    { to: "/settings", label: "设置" },
-  ];
-
   if (initializing) {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-4 text-slate-900">
@@ -273,112 +268,72 @@ export function DesktopShell() {
         <aside className="shrink-0" style={{ width: `${sidebarWidth}px` }}>
           <Card className="h-full rounded-2xl border border-slate-200 shadow-md shadow-slate-200/60">
             <CardContent className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4">
-              <div className="space-y-1">
-                <div className="text-sm font-medium text-slate-500">Linux.do Desktop</div>
-                <div className="text-2xl font-semibold text-slate-900">工作台</div>
-              </div>
+              <div className="text-2xl font-semibold text-slate-900">linux.do</div>
 
-              <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
-                {navItems.map((item) => {
-                  const active = location.pathname === item.to;
-                  return (
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl bg-slate-50 p-1">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  onClick={() => setCategoryOpen((current) => !current)}
+                >
+                  <span>类别</span>
+                  <span className="text-xs text-slate-500">{categoryOpen ? "收起" : "展开"}</span>
+                </button>
+                {categoryOpen ? (
+                  <div className="mt-1 space-y-1 px-1 pb-1">
                     <NavLink
-                      key={item.to}
-                      to={item.to}
+                      to="/topics"
                       className={[
-                        "flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition",
-                        active
+                        "block rounded-lg px-2 py-1.5 text-sm transition",
+                        location.pathname === "/topics" && !currentCategory
                           ? "bg-slate-900 text-white"
-                          : "bg-slate-50 text-slate-700 hover:bg-slate-200",
+                          : "text-slate-600 hover:bg-slate-100",
                       ].join(" ")}
                     >
-                      {item.label}
+                      全部
                     </NavLink>
-                  );
-                })}
-
-                <div className="rounded-xl bg-slate-50 p-1">
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
-                    onClick={() => setCategoryOpen((current) => !current)}
-                  >
-                    <span>类别</span>
-                    <span className="text-xs text-slate-500">{categoryOpen ? "收起" : "展开"}</span>
-                  </button>
-                  {categoryOpen ? (
-                    <div className="mt-1 space-y-1 px-1 pb-1">
-                      <NavLink
-                        to="/topics"
-                        className={[
-                          "block rounded-lg px-2 py-1.5 text-sm transition",
-                          location.pathname === "/topics" && !currentCategory
-                            ? "bg-slate-900 text-white"
-                            : "text-slate-600 hover:bg-slate-100",
-                        ].join(" ")}
-                      >
-                        全部
-                      </NavLink>
-                      {categories.map((category) => {
-                        const active = location.pathname === "/topics" && currentCategory === category.slug;
-                        return (
-                          <NavLink
-                            key={category.id}
-                            to={`/topics?category=${encodeURIComponent(category.slug)}`}
-                            className={[
-                              "block rounded-lg px-2 py-1.5 text-sm transition",
-                              active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
-                            ].join(" ")}
-                          >
-                            {category.name}
-                          </NavLink>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-              </nav>
-
-              <div className="mt-auto rounded-2xl bg-slate-50 p-3.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-slate-700">当前状态</div>
-                    <div className="mt-1 text-sm text-slate-500">
-                      {loggedIn ? "已检测到登录会话" : "游客模式"}
-                    </div>
+                    {categories.map((category) => {
+                      const active = location.pathname === "/topics" && currentCategory === category.slug;
+                      return (
+                        <NavLink
+                          key={category.id}
+                          to={`/topics?category=${encodeURIComponent(category.slug)}`}
+                          className={[
+                            "block rounded-lg px-2 py-1.5 text-sm transition",
+                            active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
+                          ].join(" ")}
+                        >
+                          {category.name}
+                        </NavLink>
+                      );
+                    })}
                   </div>
-                  <Chip
-                    label={loggedIn ? "已登录" : "未登录"}
-                    color={loggedIn ? "success" : "default"}
-                    size="small"
-                  />
-                </div>
+                ) : null}
+              </div>
 
-                {loggedIn ? (
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    className="mt-3 h-9 rounded-xl"
-                    onClick={() => {
-                      void handleLogout();
-                    }}
-                    disabled={checkingSession || loggingOut}
-                  >
-                    {loggingOut ? "退出中..." : "退出登录"}
-                  </Button>
-                ) : (
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    className="mt-3 h-9 rounded-xl"
-                    onClick={() => {
-                      void handleLogin();
-                    }}
-                    disabled={checkingSession || openingLogin}
-                  >
-                    {openingLogin ? "打开登录中..." : "登录"}
-                  </Button>
-                )}
+              <div className="mt-auto space-y-2">
+                <Button
+                  fullWidth
+                  variant={loggedIn ? "outlined" : "contained"}
+                  className="h-9 rounded-xl"
+                  onClick={() => {
+                    void handleLogin();
+                  }}
+                  disabled={loggedIn || checkingSession || openingLogin}
+                >
+                  {openingLogin ? "登录中..." : "登录"}
+                </Button>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  className="h-9 rounded-xl"
+                  onClick={() => {
+                    void handleLogout();
+                  }}
+                  disabled={!loggedIn || checkingSession || loggingOut}
+                >
+                  {loggingOut ? "退出中..." : "退出登录"}
+                </Button>
               </div>
             </CardContent>
           </Card>
