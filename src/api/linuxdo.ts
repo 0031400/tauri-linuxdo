@@ -155,7 +155,15 @@ export async function fetchTopicCategories() {
   };
 
   return (data.category_list?.categories ?? [])
-    .filter((item): item is { id: number; name: string; slug: string } => {
+    .filter(
+      (
+        item,
+      ): item is {
+        id: number;
+        name: string;
+        slug: string;
+        parent_category_id?: number | null;
+      } => {
       return (
         typeof item.id === "number" &&
         Number.isInteger(item.id) &&
@@ -165,7 +173,8 @@ export async function fetchTopicCategories() {
         typeof item.slug === "string" &&
         item.slug.trim().length > 0
       );
-    })
+    },
+    )
     .map(
       (item) =>
         ({
