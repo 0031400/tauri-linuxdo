@@ -27,6 +27,26 @@ function mergePosts(current: TopicPost[], incoming: TopicPost[]) {
   return Array.from(postMap.values()).sort((a, b) => (a.post_number ?? 0) - (b.post_number ?? 0));
 }
 
+function extractLinuxDoTopicId(url: string) {
+  try {
+    const parsed = new URL(url, "https://linux.do");
+    if (!/linux\.do$/i.test(parsed.hostname)) return null;
+
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts[0] !== "t") return null;
+
+    for (let i = parts.length - 1; i >= 1; i -= 1) {
+      const value = Number(parts[i]);
+      if (Number.isInteger(value) && value > 0) {
+        return value;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function TopicsPage() {
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [users, setUsers] = useState<Record<number, TopicUser>>({});
@@ -143,8 +163,17 @@ export function TopicsPage() {
     [searchUsers, usingSearch, users],
   );
 
-  const selectedTopic =
-    visibleTopics.find((topic) => topic.id === selectedId) ?? visibleTopics[0] ?? null;
+  const selectedTopic = useMemo(() => {
+    if (selectedId) {
+      return (
+        visibleTopics.find((topic) => topic.id === selectedId) ??
+        topics.find((topic) => topic.id === selectedId) ??
+        searchTopicsList.find((topic) => topic.id === selectedId) ??
+        ({ id: selectedId } as TopicItem)
+      );
+    }
+    return visibleTopics[0] ?? null;
+  }, [searchTopicsList, selectedId, topics, visibleTopics]);
 
   const loadMoreTopics = async () => {
     if (usingSearch || loading || loadingMore || !hasMore) return;
@@ -264,7 +293,14 @@ export function TopicsPage() {
             setLightboxIndex(0);
             setLightboxOpen(true);
           },
-          onOpenLink: (url) => void openUrl(url),
+          onOpenLink: (url) => {
+            const topicId = extractLinuxDoTopicId(url);
+            if (topicId) {
+              setSelectedId(topicId);
+              return;
+            }
+            void openUrl(url);
+          },
         }),
       );
     }
