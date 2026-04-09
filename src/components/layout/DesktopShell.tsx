@@ -2,12 +2,17 @@ import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Button, Card, CardContent, Chip } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { hasLinuxDoSession, logoutLinuxDo, openLinuxDoLogin } from "../../api/linuxdo";
+import {
+  hydrateLinuxDoCookieHeader,
+  hasLinuxDoSession,
+  logoutLinuxDo,
+  openLinuxDoLogin,
+  setLinuxDoCookieHeader,
+} from "../../api/linuxdo";
 import { notifySessionChanged, SESSION_EVENT } from "../../utils/session";
 
 type LoginStatusPayload = {
-  url: string;
-  logged_in: boolean;
+  cookie_header: string;
 };
 
 export function DesktopShell() {
@@ -38,14 +43,16 @@ export function DesktopShell() {
 
     let unlistenLoginStatus: (() => void) | undefined;
 
-    void refreshSession();
+    void (async () => {
+      await hydrateLinuxDoCookieHeader();
+      await refreshSession();
+    })();
     window.addEventListener(SESSION_EVENT, handleSessionChange);
     void listen<LoginStatusPayload>("linuxdo-login-status", async (event) => {
-      if (event.payload.logged_in) {
-        await refreshSession();
-        notifySessionChanged();
-      }
+      await setLinuxDoCookieHeader(event.payload.cookie_header);
       setOpeningLogin(false);
+      await refreshSession();
+      notifySessionChanged();
     }).then((unlisten) => {
       unlistenLoginStatus = unlisten;
     });
