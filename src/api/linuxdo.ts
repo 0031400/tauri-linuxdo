@@ -149,6 +149,7 @@ export async function fetchTopicCategories() {
         id?: number;
         name?: string;
         slug?: string;
+        parent_category_id?: number | null;
       }>;
     };
   };
@@ -171,6 +172,10 @@ export async function fetchTopicCategories() {
           id: item.id,
           name: item.name,
           slug: item.slug,
+          parent_category_id:
+            typeof item.parent_category_id === "number" && Number.isInteger(item.parent_category_id)
+              ? item.parent_category_id
+              : null,
         }) satisfies TopicCategory,
     );
 }

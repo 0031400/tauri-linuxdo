@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { Button, Card, CardContent, CircularProgress } from "@mui/material";
@@ -35,6 +35,17 @@ export function DesktopShell() {
   const [openingLogin, setOpeningLogin] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(true);
   const [categories, setCategories] = useState<TopicCategory[]>([]);
+  const [categoryLevel, setCategoryLevel] = useState<"all" | "top" | "sub">("all");
+
+  const visibleCategories = useMemo(() => {
+    if (categoryLevel === "top") {
+      return categories.filter((item) => !item.parent_category_id);
+    }
+    if (categoryLevel === "sub") {
+      return categories.filter((item) => Boolean(item.parent_category_id));
+    }
+    return categories;
+  }, [categories, categoryLevel]);
 
   useEffect(() => {
     if (isMinimal) return;
@@ -271,6 +282,46 @@ export function DesktopShell() {
               <div className="text-2xl font-semibold text-slate-900">linux.do</div>
 
               <div className="min-h-0 flex-1 overflow-y-auto rounded-xl bg-slate-50 p-1">
+                <div className="mb-1.5 flex items-center gap-1 px-1 py-1">
+                  <span className="text-xs text-slate-500">筛选等级</span>
+                  <button
+                    type="button"
+                    className={[
+                      "rounded-md px-1.5 py-0.5 text-xs transition",
+                      categoryLevel === "all"
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                    ].join(" ")}
+                    onClick={() => setCategoryLevel("all")}
+                  >
+                    全部
+                  </button>
+                  <button
+                    type="button"
+                    className={[
+                      "rounded-md px-1.5 py-0.5 text-xs transition",
+                      categoryLevel === "top"
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                    ].join(" ")}
+                    onClick={() => setCategoryLevel("top")}
+                  >
+                    一级
+                  </button>
+                  <button
+                    type="button"
+                    className={[
+                      "rounded-md px-1.5 py-0.5 text-xs transition",
+                      categoryLevel === "sub"
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                    ].join(" ")}
+                    onClick={() => setCategoryLevel("sub")}
+                  >
+                    二级
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
@@ -279,6 +330,7 @@ export function DesktopShell() {
                   <span>类别</span>
                   <span className="text-xs text-slate-500">{categoryOpen ? "收起" : "展开"}</span>
                 </button>
+
                 {categoryOpen ? (
                   <div className="mt-1 space-y-1 px-1 pb-1">
                     <NavLink
@@ -290,9 +342,9 @@ export function DesktopShell() {
                           : "text-slate-600 hover:bg-slate-100",
                       ].join(" ")}
                     >
-                      全部
+                      全部分类
                     </NavLink>
-                    {categories.map((category) => {
+                    {visibleCategories.map((category) => {
                       const active = location.pathname === "/topics" && currentCategory === category.slug;
                       return (
                         <NavLink

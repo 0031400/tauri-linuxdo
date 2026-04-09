@@ -30,6 +30,7 @@ export type TopicCategory = {
   id: number;
   name: string;
   slug: string;
+  parent_category_id?: number | null;
 };
 
 export type TopicUser = {
