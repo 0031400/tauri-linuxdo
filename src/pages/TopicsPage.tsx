@@ -91,8 +91,8 @@ export function TopicsPage() {
   const selectedTopicUrl = selectedTopic ? getTopicUrl(selectedTopic) : null;
 
   return (
-    <div className="grid h-full min-h-[calc(100vh-3rem)] grid-cols-[460px_minmax(0,1fr)] gap-6">
-      <Card className="rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
+    <div className="grid h-[calc(100vh-3rem)] grid-cols-[460px_minmax(0,1fr)] gap-6">
+      <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
         <CardContent className="flex h-full flex-col gap-5 p-6">
           <div className="space-y-1">
             <div className="text-sm font-medium text-slate-500">文章中心</div>
@@ -203,7 +203,7 @@ export function TopicsPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
+      <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
         <CardContent className="flex h-full flex-col p-8">
           {selectedTopic ? (
             <div className="flex h-full flex-col">
