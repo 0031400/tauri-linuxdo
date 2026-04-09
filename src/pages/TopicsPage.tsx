@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useLocation } from "react-router-dom";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
-import { fetchLatestTopics, fetchTopicDetail, fetchTopicPosts, searchTopics } from "../api/linuxdo";
+import {
+  fetchLatestTopics,
+  fetchTopicDetail,
+  fetchTopicPosts,
+  openTopicWindow,
+  searchTopics,
+} from "../api/linuxdo";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
 import { getTopicAuthor } from "../utils/topics";
 import { TopicDetailPanel } from "./topics/TopicDetailPanel";
@@ -48,6 +55,9 @@ function extractLinuxDoTopicId(url: string) {
 }
 
 export function TopicsPage() {
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const isMinimal = query.get("minimal") === "1";
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [users, setUsers] = useState<Record<number, TopicUser>>({});
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -103,8 +113,20 @@ export function TopicsPage() {
   };
 
   useEffect(() => {
+    if (isMinimal) return;
     void refreshTopics();
-  }, []);
+  }, [isMinimal]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const topicValue = params.get("topic");
+    if (!topicValue) return;
+
+    const topicId = Number(topicValue);
+    if (!Number.isInteger(topicId) || topicId <= 0) return;
+
+    setSelectedId(topicId);
+  }, [location.search]);
 
   useEffect(() => {
     const term = keyword.trim();
@@ -299,7 +321,7 @@ export function TopicsPage() {
             }
             const topicId = extractLinuxDoTopicId(url);
             if (topicId) {
-              setSelectedId(topicId);
+              void openTopicWindow(topicId);
               return;
             }
             void openUrl(url);
@@ -311,69 +333,91 @@ export function TopicsPage() {
   }, [posts]);
 
   return (
-    <div className="grid h-[calc(100vh-2rem)] grid-cols-[420px_minmax(0,1fr)] gap-4">
-      <TopicListPanel
-        filteredTopics={visibleTopics}
-        selectedTopic={selectedTopic}
-        users={visibleUsers}
-        loading={loading || searchLoading}
-        error={searchError || error}
-        keyword={keyword}
-        onKeywordChange={setKeyword}
-        onRefresh={() => {
-          if (usingSearch) {
-            const term = keyword.trim();
-            if (!term) return;
-            setSearchLoading(true);
-            setSearchError("");
-            void searchTopics(term, 1)
-              .then((data) => {
-                const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
-                setSearchTopicsList(data.topics);
-                setSearchUsers(nextUsers);
-                setSelectedId((currentId) => {
-                  if (currentId && data.topics.some((topic) => topic.id === currentId)) {
-                    return currentId;
-                  }
-                  return data.topics[0]?.id ?? null;
-                });
-              })
-              .catch((err: unknown) => {
-                console.error(err);
-                setSearchTopicsList([]);
-                setSearchUsers({});
-                setSearchError("Failed to search topics.");
-              })
-              .finally(() => {
-                setSearchLoading(false);
-              });
-            return;
-          }
-          void refreshTopics();
-        }}
-        onSelectTopic={setSelectedId}
-        loadingMore={usingSearch ? false : loadingMore}
-        hasMore={usingSearch ? false : hasMore}
-        onLoadMore={() => {
-          void loadMoreTopics();
-        }}
-      />
+    <>
+      {isMinimal ? (
+        <div className="h-[calc(100vh-1.5rem)]">
+          <TopicDetailPanel
+            selectedTopic={selectedTopic}
+            detail={detail}
+            detailAuthor={detailAuthor}
+            detailLikeCount={detailLikeCount}
+            detailLoading={detailLoading}
+            detailError={detailError}
+            posts={posts}
+            renderPostContent={(post) => postContentMap.get(post.id) ?? null}
+            loadingMorePosts={loadingMorePosts}
+            hasMorePosts={hasMorePosts}
+            onLoadMorePosts={() => {
+              void loadMoreDetailPosts();
+            }}
+          />
+        </div>
+      ) : (
+        <div className="grid h-[calc(100vh-2rem)] grid-cols-[420px_minmax(0,1fr)] gap-4">
+          <TopicListPanel
+            filteredTopics={visibleTopics}
+            selectedTopic={selectedTopic}
+            users={visibleUsers}
+            loading={loading || searchLoading}
+            error={searchError || error}
+            keyword={keyword}
+            onKeywordChange={setKeyword}
+            onRefresh={() => {
+              if (usingSearch) {
+                const term = keyword.trim();
+                if (!term) return;
+                setSearchLoading(true);
+                setSearchError("");
+                void searchTopics(term, 1)
+                  .then((data) => {
+                    const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
+                    setSearchTopicsList(data.topics);
+                    setSearchUsers(nextUsers);
+                    setSelectedId((currentId) => {
+                      if (currentId && data.topics.some((topic) => topic.id === currentId)) {
+                        return currentId;
+                      }
+                      return data.topics[0]?.id ?? null;
+                    });
+                  })
+                  .catch((err: unknown) => {
+                    console.error(err);
+                    setSearchTopicsList([]);
+                    setSearchUsers({});
+                    setSearchError("Failed to search topics.");
+                  })
+                  .finally(() => {
+                    setSearchLoading(false);
+                  });
+                return;
+              }
+              void refreshTopics();
+            }}
+            onSelectTopic={setSelectedId}
+            loadingMore={usingSearch ? false : loadingMore}
+            hasMore={usingSearch ? false : hasMore}
+            onLoadMore={() => {
+              void loadMoreTopics();
+            }}
+          />
 
-      <TopicDetailPanel
-        selectedTopic={selectedTopic}
-        detail={detail}
-        detailAuthor={detailAuthor}
-        detailLikeCount={detailLikeCount}
-        detailLoading={detailLoading}
-        detailError={detailError}
-        posts={posts}
-        renderPostContent={(post) => postContentMap.get(post.id) ?? null}
-        loadingMorePosts={loadingMorePosts}
-        hasMorePosts={hasMorePosts}
-        onLoadMorePosts={() => {
-          void loadMoreDetailPosts();
-        }}
-      />
+          <TopicDetailPanel
+            selectedTopic={selectedTopic}
+            detail={detail}
+            detailAuthor={detailAuthor}
+            detailLikeCount={detailLikeCount}
+            detailLoading={detailLoading}
+            detailError={detailError}
+            posts={posts}
+            renderPostContent={(post) => postContentMap.get(post.id) ?? null}
+            loadingMorePosts={loadingMorePosts}
+            hasMorePosts={hasMorePosts}
+            onLoadMorePosts={() => {
+              void loadMoreDetailPosts();
+            }}
+          />
+        </div>
+      )}
 
       <Lightbox
         open={lightboxOpen}
@@ -381,6 +425,6 @@ export function TopicsPage() {
         slides={lightboxSlides}
         index={lightboxIndex}
       />
-    </div>
+    </>
   );
 }

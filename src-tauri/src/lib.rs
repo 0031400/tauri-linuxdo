@@ -11,6 +11,7 @@ use tauri::{
 const LOGIN_WINDOW_LABEL: &str = "linuxdo-login";
 const LOGIN_URL: &str = "https://linux.do/login";
 const BASE_URL: &str = "https://linux.do/";
+const TOPIC_WINDOW_LABEL_PREFIX: &str = "linuxdo-topic-";
 
 #[derive(Clone, Serialize)]
 struct LoginStatusPayload {
@@ -99,6 +100,35 @@ async fn clear_linuxdo_browsing_data(app: tauri::AppHandle) -> Result<(), String
     Ok(())
 }
 
+#[tauri::command]
+async fn open_topic_window(app: tauri::AppHandle, topic_id: u64) -> Result<(), String> {
+    let label = format!("{TOPIC_WINDOW_LABEL_PREFIX}{topic_id}");
+    if let Some(existing) = app.get_webview_window(&label) {
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    let target_hash = format!("/topics?topic={topic_id}&minimal=1");
+    let init_script = format!(
+        r#"
+if (window.location.hash !== "{target_hash}") {{
+  window.location.hash = "{target_hash}";
+}}
+"#
+    );
+
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html".into()))
+        .title(&format!("Topic #{topic_id}"))
+        .inner_size(1180.0, 820.0)
+        .resizable(true)
+        .focused(true)
+        .initialization_script(&init_script)
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
 async fn get_linuxdo_cookie_header_from_webview(
     webview: WebviewWindow,
 ) -> Result<Option<String>, String> {
@@ -130,7 +160,8 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             open_login_webview,
-            clear_linuxdo_browsing_data
+            clear_linuxdo_browsing_data,
+            open_topic_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

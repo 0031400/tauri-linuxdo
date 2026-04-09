@@ -17,6 +17,8 @@ type LoginStatusPayload = {
 
 export function DesktopShell() {
   const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const isMinimal = query.get("minimal") === "1";
   const [initializing, setInitializing] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
   const [checkingSession, setCheckingSession] = useState(false);
@@ -105,6 +107,16 @@ export function DesktopShell() {
             <CircularProgress size={22} />
             <span className="text-sm text-slate-600">加载中...</span>
           </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (isMinimal) {
+    return (
+      <main className="min-h-screen bg-slate-100 px-3 py-3 text-slate-900">
+        <div className="mx-auto min-h-[calc(100vh-1.5rem)] max-w-[1400px]">
+          <Outlet />
         </div>
       </main>
     );
