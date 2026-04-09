@@ -52,7 +52,6 @@ export function DesktopShell() {
         setInitializing(false);
       }
     })();
-
     window.addEventListener(SESSION_EVENT, handleSessionChange);
     void listen<LoginStatusPayload>("linuxdo-login-status", async (event) => {
       await setLinuxDoCookieHeader(event.payload.cookie_header);

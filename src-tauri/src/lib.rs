@@ -1,7 +1,11 @@
 use serde::Serialize;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use tauri::{
     webview::{PageLoadEvent, Url},
-    Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 
 const LOGIN_WINDOW_LABEL: &str = "linuxdo-login";
@@ -24,10 +28,13 @@ async fn open_login_webview(
     }
 
     let main_label = webview_window.label().to_string();
+    let close_event_main_label = main_label.clone();
     let login_url = Url::parse(LOGIN_URL).map_err(|error| error.to_string())?;
     let app_handle = app.clone();
+    let closed_after_login_success = Arc::new(AtomicBool::new(false));
+    let close_event_flag = closed_after_login_success.clone();
 
-    WebviewWindowBuilder::new(&app, LOGIN_WINDOW_LABEL, WebviewUrl::External(login_url))
+    let login_window = WebviewWindowBuilder::new(&app, LOGIN_WINDOW_LABEL, WebviewUrl::External(login_url))
         .title("Linux.do 登录")
         .inner_size(980.0, 720.0)
         .resizable(true)
@@ -37,6 +44,7 @@ async fn open_login_webview(
                 let app_handle = app_handle.clone();
                 let main_label = main_label.clone();
                 let window = window.clone();
+                let closed_after_login_success = closed_after_login_success.clone();
 
                 tauri::async_runtime::spawn(async move {
                     if let Ok(Some(cookie_header)) = get_linuxdo_cookie_header_from_webview(window.clone()).await
@@ -46,6 +54,7 @@ async fn open_login_webview(
                             "linuxdo-login-status",
                             LoginStatusPayload { cookie_header },
                         );
+                        closed_after_login_success.store(true, Ordering::Relaxed);
                         let _ = window.close();
                     }
                 });
@@ -53,6 +62,21 @@ async fn open_login_webview(
         })
         .build()
         .map_err(|error| error.to_string())?;
+
+    let close_event_app_handle = app.clone();
+    login_window.on_window_event(move |event| {
+        let should_emit_empty = matches!(event, WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed)
+            && !close_event_flag.load(Ordering::Relaxed);
+        if should_emit_empty {
+            let _ = close_event_app_handle.emit_to(
+                close_event_main_label.clone(),
+                "linuxdo-login-status",
+                LoginStatusPayload {
+                    cookie_header: String::new(),
+                },
+            );
+        }
+    });
 
     Ok(())
 }
