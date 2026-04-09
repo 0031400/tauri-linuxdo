@@ -4,7 +4,7 @@ import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import { fetchLatestTopics, fetchTopicDetail, fetchTopicPosts, searchTopics } from "../api/linuxdo";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
-import { getTopicAuthor, getTopicUrl } from "../utils/topics";
+import { getTopicAuthor } from "../utils/topics";
 import { TopicDetailPanel } from "./topics/TopicDetailPanel";
 import { TopicListPanel } from "./topics/TopicListPanel";
 import { renderCookedContent } from "./topics/renderCookedContent";
@@ -247,7 +247,6 @@ export function TopicsPage() {
   };
 
   const selectedAuthor = selectedTopic ? getTopicAuthor(selectedTopic, visibleUsers) : null;
-  const selectedTopicUrl = selectedTopic ? getTopicUrl(selectedTopic) : null;
   const posts = detailPosts;
   const firstPost = posts[0] ?? null;
   const detailAuthor = detail?.details?.created_by ?? selectedAuthor ?? null;
@@ -328,23 +327,12 @@ export function TopicsPage() {
         detailLikeCount={detailLikeCount}
         detailLoading={detailLoading}
         detailError={detailError}
-        firstPost={firstPost}
         posts={posts}
         renderPostContent={(post) => postContentMap.get(post.id) ?? null}
         loadingMorePosts={loadingMorePosts}
         hasMorePosts={hasMorePosts}
         onLoadMorePosts={() => {
           void loadMoreDetailPosts();
-        }}
-        onOpenOriginal={() => {
-          if (selectedTopicUrl) {
-            void openUrl(selectedTopicUrl);
-          }
-        }}
-        onKeepSelected={() => {
-          if (selectedTopic?.id) {
-            window.location.hash = `#/topics?topic=${selectedTopic.id}`;
-          }
         }}
       />
 

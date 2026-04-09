@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Alert, Button, Card, CardContent, Chip, CircularProgress, Divider } from "@mui/material";
+import { Alert, Card, CardContent, Chip, CircularProgress, Divider } from "@mui/material";
 import type { UIEvent } from "react";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicTag, TopicUser } from "../../types/topic";
 import { formatAbsoluteTime, getTopicTagKey, getTopicTagLabel, getTopicTitle } from "../../utils/topics";
@@ -11,14 +11,11 @@ type TopicDetailPanelProps = {
   detailLikeCount: number;
   detailLoading: boolean;
   detailError: string;
-  firstPost: TopicPost | null;
   posts: TopicPost[];
   renderPostContent: (post: TopicPost) => ReactNode[] | null;
   loadingMorePosts: boolean;
   hasMorePosts: boolean;
   onLoadMorePosts: () => void;
-  onOpenOriginal: () => void;
-  onKeepSelected: () => void;
 };
 
 function getTags(detail: TopicDetailResponse | null, selectedTopic: TopicItem | null): TopicTag[] {
@@ -32,14 +29,11 @@ export function TopicDetailPanel({
   detailLikeCount,
   detailLoading,
   detailError,
-  firstPost,
   posts,
   renderPostContent,
   loadingMorePosts,
   hasMorePosts,
   onLoadMorePosts,
-  onOpenOriginal,
-  onKeepSelected,
 }: TopicDetailPanelProps) {
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     if (loadingMorePosts || !hasMorePosts || detailLoading || detailError) return;
@@ -125,23 +119,6 @@ export function TopicDetailPanel({
                         </div>
                       </article>
 
-                      {index === 0 ? (
-                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                          <div className="text-sm text-slate-500">
-                            {firstPost?.updated_at
-                              ? `Updated at ${formatAbsoluteTime(firstPost.updated_at)}`
-                              : `Created at ${formatAbsoluteTime(detail?.created_at || selectedTopic.created_at)}`}
-                          </div>
-                          <div className="flex gap-3">
-                            <Button variant="contained" className="h-11 rounded-2xl" onClick={onOpenOriginal}>
-                              Open original
-                            </Button>
-                            <Button variant="outlined" className="h-11 rounded-2xl" onClick={onKeepSelected}>
-                              Keep selected
-                            </Button>
-                          </div>
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })}
