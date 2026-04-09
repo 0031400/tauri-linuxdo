@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 function normalizeLinuxDoUrl(url: string) {
   if (!url) return url;
@@ -156,6 +158,39 @@ export function renderCookedContent(
 
     if (tag === "br") return <br key={nextKey()} />;
 
+    if (tag === "pre") {
+      const codeElement = element.querySelector("code");
+      const rawClass = codeElement?.getAttribute("class") ?? "";
+      const language =
+        rawClass.match(/(?:lang|language)-([a-z0-9_+-]+)/i)?.[1]?.toLowerCase() ?? "text";
+      const codeText = codeElement?.textContent ?? element.textContent ?? "";
+
+      return (
+        <SyntaxHighlighter
+          key={nextKey()}
+          language={language}
+          style={oneDark}
+          PreTag="div"
+          customStyle={{
+            margin: "0.75rem 0",
+            borderRadius: "1rem",
+            padding: "1rem",
+            overflow: "auto",
+            fontSize: "13px",
+            lineHeight: 1.6,
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace",
+            },
+          }}
+        >
+          {codeText}
+        </SyntaxHighlighter>
+      );
+    }
+
     if (tag === "span" && element.classList.contains("discourse-local-date")) {
       const fallbackText = element.textContent ?? "";
       const text = element.getAttribute("data-email-preview") || fallbackText;
@@ -184,15 +219,6 @@ export function renderCookedContent(
           <blockquote key={nextKey()} className="my-3 border-l-4 border-slate-200 pl-4">
             {children}
           </blockquote>
-        );
-      case "pre":
-        return (
-          <pre
-            key={nextKey()}
-            className="my-3 overflow-auto rounded-2xl bg-slate-950 p-4 text-slate-100"
-          >
-            {children}
-          </pre>
         );
       case "code":
         return (
