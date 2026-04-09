@@ -3,12 +3,6 @@ import { fetch } from "@tauri-apps/plugin-http";
 import type { LatestTopicsResponse, TopicDetailResponse } from "../types/topic";
 import { BASE_URL } from "../utils/topics";
 
-type CurrentSessionResponse = {
-  current_user?: {
-    username?: string;
-  } | null;
-};
-
 type CsrfResponse = {
   csrf?: string;
 };
@@ -36,22 +30,13 @@ async function createAuthHeaders(extraHeaders?: Record<string, string>) {
   };
 }
 
-export async function fetchCurrentSession() {
-  const response = await fetch(`${BASE_URL}/session/current.json`, {
-    method: "GET",
-    headers: await createAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+export async function hasLinuxDoSession() {
+  const cookieHeader = await getLinuxDoCookieHeader();
+  if (!cookieHeader || !cookieHeader.trim()) {
+    return false;
   }
 
-  return response.json() as Promise<CurrentSessionResponse>;
-}
-
-export async function hasLinuxDoSession() {
-  const session = await fetchCurrentSession();
-  return Boolean(session.current_user?.username?.trim());
+  return /(?:^|;\s*)_t=/.test(cookieHeader);
 }
 
 export async function fetchCsrfToken() {
@@ -75,7 +60,20 @@ export async function fetchCsrfToken() {
 }
 
 export async function logoutLinuxDo() {
-  const session = await fetchCurrentSession();
+  const sessionResponse = await fetch(`${BASE_URL}/session/current.json`, {
+    method: "GET",
+    headers: await createAuthHeaders(),
+  });
+
+  if (!sessionResponse.ok) {
+    throw new Error(`HTTP ${sessionResponse.status}`);
+  }
+
+  const session = (await sessionResponse.json()) as {
+    current_user?: {
+      username?: string;
+    } | null;
+  };
   const username = session.current_user?.username?.trim();
 
   if (!username) {

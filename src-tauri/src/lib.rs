@@ -1,7 +1,7 @@
 use serde::Serialize;
 use tauri::{
-    Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     webview::{PageLoadEvent, Url},
+    Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 const LOGIN_WINDOW_LABEL: &str = "linuxdo-login";
@@ -35,7 +35,6 @@ async fn open_login_webview(
         .focused(true)
         .on_page_load(move |window, payload| {
             let url = payload.url().to_string();
-
             let _ = app_handle.emit_to(
                 main_label.clone(),
                 "linuxdo-login-status",

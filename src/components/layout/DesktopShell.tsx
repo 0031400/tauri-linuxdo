@@ -18,27 +18,31 @@ export function DesktopShell() {
   const [openingLogin, setOpeningLogin] = useState(false);
 
   useEffect(() => {
-    const check = async () => {
+    const refreshSession = async () => {
       setCheckingSession(true);
       try {
-        setLoggedIn(await hasLinuxDoSession());
+        const nextLoggedIn = await hasLinuxDoSession();
+        setLoggedIn(nextLoggedIn);
+        return nextLoggedIn;
       } catch {
         setLoggedIn(false);
+        return false;
       } finally {
         setCheckingSession(false);
       }
     };
 
     const handleSessionChange = () => {
-      void check();
+      void refreshSession();
     };
 
     let unlistenLoginStatus: (() => void) | undefined;
 
-    void check();
+    void refreshSession();
     window.addEventListener(SESSION_EVENT, handleSessionChange);
     void listen<LoginStatusPayload>("linuxdo-login-status", async (event) => {
       if (event.payload.logged_in) {
+        await refreshSession();
         notifySessionChanged();
       }
       setOpeningLogin(false);
