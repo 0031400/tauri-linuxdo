@@ -1,7 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { fetch } from "@tauri-apps/plugin-http";
 import { load } from "@tauri-apps/plugin-store";
-import type { LatestTopicsResponse, TopicDetailResponse } from "../types/topic";
+import type {
+  LatestTopicsResponse,
+  SearchTopicsResponse,
+  TopicDetailResponse,
+  TopicItem,
+} from "../types/topic";
 import { BASE_URL } from "../utils/topics";
 
 const COOKIE_STORE_PATH = "linuxdo.store.json";
@@ -110,4 +115,58 @@ export async function fetchTopicDetail(topicId: number) {
   }
 
   return response.json() as Promise<TopicDetailResponse>;
+}
+
+type SearchRawResponse = {
+  topics?: Array<
+    TopicItem & {
+      bumped_at?: string;
+      highest_post_number?: number;
+      reply_count?: number;
+    }
+  >;
+  users?: SearchTopicsResponse["users"];
+  grouped_search_result?: {
+    more_posts?: boolean;
+    more_full_page_results?: boolean;
+  };
+};
+
+export async function searchTopics(query: string, page = 1) {
+  const term = query.trim();
+  if (!term) {
+    return {
+      topics: [],
+      users: [],
+      hasMore: false,
+    } satisfies SearchTopicsResponse;
+  }
+
+  const url = new URL(`${BASE_URL}/search/query.json`);
+  url.searchParams.set("term", term);
+  url.searchParams.set("page", String(page));
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: createAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const raw = (await response.json()) as SearchRawResponse;
+  const topics = (raw.topics ?? []).map((topic) => ({
+    ...topic,
+    posts_count: topic.posts_count ?? topic.highest_post_number ?? topic.reply_count ?? 0,
+    last_posted_at: topic.last_posted_at ?? topic.bumped_at,
+  }));
+
+  return {
+    topics,
+    users: raw.users ?? [],
+    hasMore: Boolean(
+      raw.grouped_search_result?.more_full_page_results || raw.grouped_search_result?.more_posts,
+    ),
+  } satisfies SearchTopicsResponse;
 }

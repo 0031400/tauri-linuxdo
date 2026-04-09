@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
-import { fetchLatestTopics, fetchTopicDetail } from "../api/linuxdo";
+import { fetchLatestTopics, fetchTopicDetail, searchTopics } from "../api/linuxdo";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
-import { getTopicAuthor, getTopicTagLabel, getTopicUrl } from "../utils/topics";
+import { getTopicAuthor, getTopicUrl } from "../utils/topics";
 import { TopicDetailPanel } from "./topics/TopicDetailPanel";
 import { TopicListPanel } from "./topics/TopicListPanel";
 import { renderCookedContent } from "./topics/renderCookedContent";
@@ -30,6 +30,10 @@ export function TopicsPage() {
   const [detail, setDetail] = useState<TopicDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [searchTopicsList, setSearchTopicsList] = useState<TopicItem[]>([]);
+  const [searchUsers, setSearchUsers] = useState<Record<number, TopicUser>>({});
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -71,22 +75,68 @@ export function TopicsPage() {
     void refreshTopics();
   }, []);
 
-  const filteredTopics = useMemo(() => {
-    const value = keyword.trim().toLowerCase();
-    if (!value) return topics;
+  useEffect(() => {
+    const term = keyword.trim();
+    if (!term) {
+      setSearchTopicsList([]);
+      setSearchUsers({});
+      setSearchError("");
+      setSearchLoading(false);
+      return;
+    }
 
-    return topics.filter((topic) => {
-      const title = (topic.fancy_title || topic.title || "").toLowerCase();
-      const tags = (topic.tags ?? []).map(getTopicTagLabel).join(" ").toLowerCase();
-      return title.includes(value) || tags.includes(value);
-    });
-  }, [keyword, topics]);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        setSearchLoading(true);
+        setSearchError("");
+
+        try {
+          const data = await searchTopics(term, 1);
+          if (cancelled) return;
+
+          const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
+          setSearchTopicsList(data.topics);
+          setSearchUsers(nextUsers);
+          setSelectedId((currentId) => {
+            if (currentId && data.topics.some((topic) => topic.id === currentId)) {
+              return currentId;
+            }
+            return data.topics[0]?.id ?? null;
+          });
+        } catch (err) {
+          console.error(err);
+          if (!cancelled) {
+            setSearchTopicsList([]);
+            setSearchUsers({});
+            setSearchError("Failed to search topics.");
+          }
+        } finally {
+          if (!cancelled) {
+            setSearchLoading(false);
+          }
+        }
+      })();
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [keyword]);
+
+  const usingSearch = keyword.trim().length > 0;
+  const visibleTopics = usingSearch ? searchTopicsList : topics;
+  const visibleUsers = useMemo(
+    () => (usingSearch ? { ...users, ...searchUsers } : users),
+    [searchUsers, usingSearch, users],
+  );
 
   const selectedTopic =
-    filteredTopics.find((topic) => topic.id === selectedId) ?? filteredTopics[0] ?? null;
+    visibleTopics.find((topic) => topic.id === selectedId) ?? visibleTopics[0] ?? null;
 
   const loadMoreTopics = async () => {
-    if (loading || loadingMore || !hasMore) return;
+    if (usingSearch || loading || loadingMore || !hasMore) return;
 
     setLoadingMore(true);
     try {
@@ -145,7 +195,7 @@ export function TopicsPage() {
     };
   }, [selectedTopic?.id]);
 
-  const selectedAuthor = selectedTopic ? getTopicAuthor(selectedTopic, users) : null;
+  const selectedAuthor = selectedTopic ? getTopicAuthor(selectedTopic, visibleUsers) : null;
   const selectedTopicUrl = selectedTopic ? getTopicUrl(selectedTopic) : null;
   const posts = detail?.post_stream?.posts ?? [];
   const firstPost = posts[0] ?? null;
@@ -174,19 +224,47 @@ export function TopicsPage() {
   return (
     <div className="grid h-[calc(100vh-3rem)] grid-cols-[460px_minmax(0,1fr)] gap-6">
       <TopicListPanel
-        filteredTopics={filteredTopics}
+        filteredTopics={visibleTopics}
         selectedTopic={selectedTopic}
-        users={users}
-        loading={loading}
-        error={error}
+        users={visibleUsers}
+        loading={loading || searchLoading}
+        error={searchError || error}
         keyword={keyword}
         onKeywordChange={setKeyword}
         onRefresh={() => {
+          if (usingSearch) {
+            const term = keyword.trim();
+            if (!term) return;
+            setSearchLoading(true);
+            setSearchError("");
+            void searchTopics(term, 1)
+              .then((data) => {
+                const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
+                setSearchTopicsList(data.topics);
+                setSearchUsers(nextUsers);
+                setSelectedId((currentId) => {
+                  if (currentId && data.topics.some((topic) => topic.id === currentId)) {
+                    return currentId;
+                  }
+                  return data.topics[0]?.id ?? null;
+                });
+              })
+              .catch((err: unknown) => {
+                console.error(err);
+                setSearchTopicsList([]);
+                setSearchUsers({});
+                setSearchError("Failed to search topics.");
+              })
+              .finally(() => {
+                setSearchLoading(false);
+              });
+            return;
+          }
           void refreshTopics();
         }}
         onSelectTopic={setSelectedId}
-        loadingMore={loadingMore}
-        hasMore={hasMore}
+        loadingMore={usingSearch ? false : loadingMore}
+        hasMore={usingSearch ? false : hasMore}
         onLoadMore={() => {
           void loadMoreTopics();
         }}

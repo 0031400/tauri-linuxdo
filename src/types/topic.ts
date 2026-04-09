@@ -40,6 +40,12 @@ export type LatestTopicsResponse = {
   };
 };
 
+export type SearchTopicsResponse = {
+  topics: TopicItem[];
+  users: TopicUser[];
+  hasMore: boolean;
+};
+
 export type TopicPost = {
   id: number;
   post_number?: number;
