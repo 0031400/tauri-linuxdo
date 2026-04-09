@@ -1,8 +1,14 @@
 import type { ReactNode } from "react";
-import { Alert, Card, CardContent, Chip, CircularProgress } from "@mui/material";
+import { Alert, Avatar, Card, CardContent, Chip, CircularProgress } from "@mui/material";
 import type { UIEvent } from "react";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicTag, TopicUser } from "../../types/topic";
-import { formatAbsoluteTime, getTopicTagKey, getTopicTagLabel, getTopicTitle } from "../../utils/topics";
+import {
+  buildAvatarUrl,
+  formatAbsoluteTime,
+  getTopicTagKey,
+  getTopicTagLabel,
+  getTopicTitle,
+} from "../../utils/topics";
 
 type TopicDetailPanelProps = {
   selectedTopic: TopicItem | null;
@@ -111,8 +117,16 @@ export function TopicDetailPanel({
                     <div key={post.id}>
                       <article className="rounded-2xl border border-slate-200 bg-white p-4">
                         <div className="mb-3 flex items-center justify-between gap-3">
-                          <div className="text-sm font-medium text-slate-700">
-                            L{floor} | {authorName}
+                          <div className="flex items-center gap-2">
+                            <Avatar
+                              src={post.avatar_template ? buildAvatarUrl(post.avatar_template, 64) : undefined}
+                              className="h-7 w-7 bg-slate-900 text-xs"
+                            >
+                              {authorName.slice(0, 1).toUpperCase()}
+                            </Avatar>
+                            <div className="text-sm font-medium text-slate-700">
+                              L{floor} | {authorName}
+                            </div>
                           </div>
                           <div className="text-xs text-slate-400">{formatAbsoluteTime(postTime)}</div>
                         </div>
