@@ -11,7 +11,8 @@ type TopicDetailPanelProps = {
   detailLoading: boolean;
   detailError: string;
   firstPost: TopicPost | null;
-  cookedContent: ReactNode[] | null;
+  posts: TopicPost[];
+  renderPostContent: (post: TopicPost) => ReactNode[] | null;
   onOpenOriginal: () => void;
   onKeepSelected: () => void;
 };
@@ -28,7 +29,8 @@ export function TopicDetailPanel({
   detailLoading,
   detailError,
   firstPost,
-  cookedContent,
+  posts,
+  renderPostContent,
   onOpenOriginal,
   onKeepSelected,
 }: TopicDetailPanelProps) {
@@ -86,8 +88,49 @@ export function TopicDetailPanel({
               </div>
             ) : detailError ? (
               <Alert severity="error">{detailError}</Alert>
-            ) : cookedContent ? (
-              <article className="max-w-none text-[15px] leading-7 text-slate-700">{cookedContent}</article>
+            ) : posts.length > 0 ? (
+              <div className="space-y-4">
+                {posts.map((post, index) => {
+                  const floor = post.post_number ?? index + 1;
+                  const content = renderPostContent(post);
+                  const authorName = post.name || post.username || "anonymous";
+                  const postTime = post.updated_at || post.created_at;
+
+                  return (
+                    <div key={post.id}>
+                      <article className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div className="text-sm font-medium text-slate-700">
+                            L{floor} | {authorName}
+                          </div>
+                          <div className="text-xs text-slate-400">{formatAbsoluteTime(postTime)}</div>
+                        </div>
+                        <div className="max-w-none text-[15px] leading-7 text-slate-700">
+                          {content ?? <p className="text-slate-500">No content</p>}
+                        </div>
+                      </article>
+
+                      {index === 0 ? (
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                          <div className="text-sm text-slate-500">
+                            {firstPost?.updated_at
+                              ? `Updated at ${formatAbsoluteTime(firstPost.updated_at)}`
+                              : `Created at ${formatAbsoluteTime(detail?.created_at || selectedTopic.created_at)}`}
+                          </div>
+                          <div className="flex gap-3">
+                            <Button variant="contained" className="h-11 rounded-2xl" onClick={onOpenOriginal}>
+                              Open original
+                            </Button>
+                            <Button variant="outlined" className="h-11 rounded-2xl" onClick={onKeepSelected}>
+                              Keep selected
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <div className="space-y-4 text-[15px] leading-7 text-slate-600">
                 <p>{selectedTopic.excerpt || "No post content is available for this topic yet."}</p>
@@ -109,21 +152,6 @@ export function TopicDetailPanel({
             </div>
           ) : null}
 
-          <div className="mt-6 flex items-center justify-between gap-3 border-t border-slate-100 pt-6">
-            <div className="text-sm text-slate-500">
-              {firstPost?.updated_at
-                ? `Updated at ${formatAbsoluteTime(firstPost.updated_at)}`
-                : `Created at ${formatAbsoluteTime(detail?.created_at || selectedTopic.created_at)}`}
-            </div>
-            <div className="flex gap-3">
-              <Button variant="contained" className="h-11 rounded-2xl" onClick={onOpenOriginal}>
-                Open original
-              </Button>
-              <Button variant="outlined" className="h-11 rounded-2xl" onClick={onKeepSelected}>
-                Keep selected
-              </Button>
-            </div>
-          </div>
         </div>
       </CardContent>
     </Card>

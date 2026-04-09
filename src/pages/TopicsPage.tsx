@@ -147,24 +147,29 @@ export function TopicsPage() {
 
   const selectedAuthor = selectedTopic ? getTopicAuthor(selectedTopic, users) : null;
   const selectedTopicUrl = selectedTopic ? getTopicUrl(selectedTopic) : null;
-  const firstPost = detail?.post_stream?.posts?.[0] ?? null;
+  const posts = detail?.post_stream?.posts ?? [];
+  const firstPost = posts[0] ?? null;
   const detailAuthor = detail?.details?.created_by ?? selectedAuthor ?? null;
   const detailLikeCount = detail?.like_count ?? getPostLikeCount(firstPost ?? undefined);
 
-  const cookedContent = useMemo(
-    () =>
-      firstPost?.cooked
-        ? renderCookedContent(firstPost.cooked, {
-            onOpenImage: (url) => {
-              setLightboxSlides([{ src: url }]);
-              setLightboxIndex(0);
-              setLightboxOpen(true);
-            },
-            onOpenLink: (url) => void openUrl(url),
-          })
-        : null,
-    [firstPost?.cooked],
-  );
+  const postContentMap = useMemo(() => {
+    const result = new Map<number, ReturnType<typeof renderCookedContent>>();
+    for (const post of posts) {
+      if (!post.cooked) continue;
+      result.set(
+        post.id,
+        renderCookedContent(post.cooked, {
+          onOpenImage: (url) => {
+            setLightboxSlides([{ src: url }]);
+            setLightboxIndex(0);
+            setLightboxOpen(true);
+          },
+          onOpenLink: (url) => void openUrl(url),
+        }),
+      );
+    }
+    return result;
+  }, [posts]);
 
   return (
     <div className="grid h-[calc(100vh-3rem)] grid-cols-[460px_minmax(0,1fr)] gap-6">
@@ -195,7 +200,8 @@ export function TopicsPage() {
         detailLoading={detailLoading}
         detailError={detailError}
         firstPost={firstPost}
-        cookedContent={cookedContent}
+        posts={posts}
+        renderPostContent={(post) => postContentMap.get(post.id) ?? null}
         onOpenOriginal={() => {
           if (selectedTopicUrl) {
             void openUrl(selectedTopicUrl);

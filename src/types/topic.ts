@@ -42,6 +42,7 @@ export type LatestTopicsResponse = {
 
 export type TopicPost = {
   id: number;
+  post_number?: number;
   username?: string;
   name?: string;
   avatar_template?: string;
