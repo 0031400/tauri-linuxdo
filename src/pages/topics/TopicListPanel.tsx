@@ -117,15 +117,6 @@ export function TopicListPanel({
 
                       <div className="mt-1 line-clamp-2 text-[15px] font-semibold">{getTopicTitle(topic)}</div>
 
-                      <div
-                        className={[
-                          "mt-1.5 line-clamp-2 text-sm",
-                          active ? "text-slate-300" : "text-slate-500",
-                        ].join(" ")}
-                      >
-                        {topic.excerpt || "Open the right panel for full content and stats."}
-                      </div>
-
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {(topic.tags ?? []).slice(0, 3).map((tag) => (
                           <span
