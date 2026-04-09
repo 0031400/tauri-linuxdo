@@ -311,29 +311,32 @@ export function DesktopShell() {
                 ) : null}
               </div>
 
-              <div className="mt-auto space-y-2">
-                <Button
-                  fullWidth
-                  variant={loggedIn ? "outlined" : "contained"}
-                  className="h-9 rounded-xl"
-                  onClick={() => {
-                    void handleLogin();
-                  }}
-                  disabled={loggedIn || checkingSession || openingLogin}
-                >
-                  {openingLogin ? "登录中..." : "登录"}
-                </Button>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  className="h-9 rounded-xl"
-                  onClick={() => {
-                    void handleLogout();
-                  }}
-                  disabled={!loggedIn || checkingSession || loggingOut}
-                >
-                  {loggingOut ? "退出中..." : "退出登录"}
-                </Button>
+              <div className="mt-auto">
+                {loggedIn ? (
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    className="h-9 rounded-xl"
+                    onClick={() => {
+                      void handleLogout();
+                    }}
+                    disabled={checkingSession || loggingOut}
+                  >
+                    {loggingOut ? "退出中..." : "退出登录"}
+                  </Button>
+                ) : (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    className="h-9 rounded-xl"
+                    onClick={() => {
+                      void handleLogin();
+                    }}
+                    disabled={checkingSession || openingLogin}
+                  >
+                    {openingLogin ? "登录中..." : "登录"}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
