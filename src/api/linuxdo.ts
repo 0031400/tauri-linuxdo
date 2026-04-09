@@ -17,6 +17,10 @@ export async function getLinuxDoCookieHeader() {
   return invoke<string | null>("get_linuxdo_cookie_header");
 }
 
+export async function openLinuxDoLogin() {
+  return invoke("open_login_webview");
+}
+
 async function createAuthHeaders(extraHeaders?: Record<string, string>) {
   const cookieHeader = await getLinuxDoCookieHeader();
 

@@ -1,14 +1,21 @@
 import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { Button, Card, CardContent, Chip } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { hasLinuxDoSession, logoutLinuxDo } from "../../api/linuxdo";
+import { hasLinuxDoSession, logoutLinuxDo, openLinuxDoLogin } from "../../api/linuxdo";
 import { notifySessionChanged, SESSION_EVENT } from "../../utils/session";
+
+type LoginStatusPayload = {
+  url: string;
+  logged_in: boolean;
+};
 
 export function DesktopShell() {
   const location = useLocation();
   const [loggedIn, setLoggedIn] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [openingLogin, setOpeningLogin] = useState(false);
 
   useEffect(() => {
     const check = async () => {
@@ -26,13 +33,34 @@ export function DesktopShell() {
       void check();
     };
 
+    let unlistenLoginStatus: (() => void) | undefined;
+
     void check();
     window.addEventListener(SESSION_EVENT, handleSessionChange);
+    void listen<LoginStatusPayload>("linuxdo-login-status", async (event) => {
+      if (event.payload.logged_in) {
+        notifySessionChanged();
+      }
+      setOpeningLogin(false);
+    }).then((unlisten) => {
+      unlistenLoginStatus = unlisten;
+    });
 
     return () => {
       window.removeEventListener(SESSION_EVENT, handleSessionChange);
+      unlistenLoginStatus?.();
     };
   }, []);
+
+  const handleLogin = async () => {
+    setOpeningLogin(true);
+    try {
+      await openLinuxDoLogin();
+    } catch (error) {
+      console.error(error);
+      setOpeningLogin(false);
+    }
+  };
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -111,7 +139,19 @@ export function DesktopShell() {
                   >
                     {loggingOut ? "退出中..." : "退出登录"}
                   </Button>
-                ) : null}
+                ) : (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    className="mt-4 h-10 rounded-2xl"
+                    onClick={() => {
+                      void handleLogin();
+                    }}
+                    disabled={checkingSession || openingLogin}
+                  >
+                    {openingLogin ? "打开登录中..." : "登录"}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
