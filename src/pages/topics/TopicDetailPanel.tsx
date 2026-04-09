@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Alert, Card, CardContent, Chip, CircularProgress, Divider } from "@mui/material";
+import { Alert, Card, CardContent, Chip, CircularProgress } from "@mui/material";
 import type { UIEvent } from "react";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicTag, TopicUser } from "../../types/topic";
 import { formatAbsoluteTime, getTopicTagKey, getTopicTagLabel, getTopicTitle } from "../../utils/topics";
@@ -59,34 +59,24 @@ export function TopicDetailPanel({
     <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
       <CardContent className="h-full overflow-auto p-8" onScroll={handleScroll}>
         <div className="flex min-h-full flex-col">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-3">
-              <div className="text-sm font-medium text-slate-500">
+          <div className="rounded-2xl bg-slate-50/70 px-4 py-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 {detailAuthor?.name || detailAuthor?.username || "linux.do"}
+                </div>
+                <h2 className="text-2xl font-semibold text-slate-900">{getTopicTitle(selectedTopic)}</h2>
               </div>
-              <h2 className="text-3xl font-semibold text-slate-900">{getTopicTitle(selectedTopic)}</h2>
+              <Chip
+                label={`${detail?.posts_count ?? selectedTopic.posts_count ?? 0} replies`}
+                color="primary"
+                size="small"
+              />
             </div>
-            <Chip label={`${detail?.posts_count ?? selectedTopic.posts_count ?? 0} replies`} color="primary" />
-          </div>
 
-          <Divider className="my-6" />
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-3xl bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">Views</div>
-              <div className="mt-2 text-2xl font-semibold text-slate-900">
-                {detail?.views ?? selectedTopic.views ?? 0}
-              </div>
-            </div>
-            <div className="rounded-3xl bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">Likes</div>
-              <div className="mt-2 text-2xl font-semibold text-slate-900">{detailLikeCount}</div>
-            </div>
-            <div className="rounded-3xl bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">Created</div>
-              <div className="mt-2 text-base font-semibold text-slate-900">
-                {formatAbsoluteTime(detail?.created_at || selectedTopic.created_at)}
-              </div>
+            <div className="mt-2 text-xs text-slate-500">
+              {detail?.views ?? selectedTopic.views ?? 0} views | {detailLikeCount} likes | created{" "}
+              {formatAbsoluteTime(detail?.created_at || selectedTopic.created_at)}
             </div>
           </div>
 
