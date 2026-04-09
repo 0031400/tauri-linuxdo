@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Alert, Avatar, Card, CardContent, Chip, CircularProgress } from "@mui/material";
+import { Alert, Avatar, Button, Card, CardContent, Chip, CircularProgress } from "@mui/material";
 import type { UIEvent } from "react";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicTag, TopicUser } from "../../types/topic";
 import {
@@ -22,6 +22,7 @@ type TopicDetailPanelProps = {
   loadingMorePosts: boolean;
   hasMorePosts: boolean;
   onLoadMorePosts: () => void;
+  onRetryDetail: () => void;
 };
 
 function getTags(detail: TopicDetailResponse | null, selectedTopic: TopicItem | null): TopicTag[] {
@@ -40,6 +41,7 @@ export function TopicDetailPanel({
   loadingMorePosts,
   hasMorePosts,
   onLoadMorePosts,
+  onRetryDetail,
 }: TopicDetailPanelProps) {
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     if (loadingMorePosts || !hasMorePosts || detailLoading || detailError) return;
@@ -92,7 +94,16 @@ export function TopicDetailPanel({
                 <CircularProgress size={28} />
               </div>
             ) : detailError ? (
-              <Alert severity="error">{detailError}</Alert>
+              <Alert
+                severity="error"
+                action={
+                  <Button color="inherit" size="small" onClick={onRetryDetail}>
+                    Retry
+                  </Button>
+                }
+              >
+                {detailError}
+              </Alert>
             ) : posts.length > 0 ? (
               <div className="space-y-3">
                 {tags.length > 0 ? (

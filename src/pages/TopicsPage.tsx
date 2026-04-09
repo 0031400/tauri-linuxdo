@@ -87,6 +87,7 @@ export function TopicsPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxSlides, setLightboxSlides] = useState<Array<{ src: string }>>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const detailRequestIdRef = useRef(0);
 
   useEffect(() => {
     void readLayoutNumber("layout.topicsListWidth", 420).then((value) => {
@@ -264,8 +265,42 @@ export function TopicsPage() {
     }
   };
 
+  const refreshDetail = async (topicId: number) => {
+    const requestId = detailRequestIdRef.current + 1;
+    detailRequestIdRef.current = requestId;
+
+    setDetailLoading(true);
+    setDetailError("");
+
+    try {
+      const data = await fetchTopicDetail(topicId);
+      if (requestId !== detailRequestIdRef.current) return;
+      setDetail(data);
+      const initialPosts = data.post_stream?.posts ?? [];
+      const streamIds = data.post_stream?.stream ?? initialPosts.map((post) => post.id);
+      setDetailPosts(initialPosts);
+      setDetailStreamPostIds(streamIds);
+      setHasMorePosts(streamIds.length > initialPosts.length);
+      setLoadingMorePosts(false);
+    } catch (err) {
+      console.error(err);
+      if (requestId !== detailRequestIdRef.current) return;
+      setDetail(null);
+      setDetailPosts([]);
+      setDetailStreamPostIds([]);
+      setHasMorePosts(false);
+      setLoadingMorePosts(false);
+      setDetailError("Failed to load topic detail.");
+    } finally {
+      if (requestId === detailRequestIdRef.current) {
+        setDetailLoading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     if (!selectedTopic?.id) {
+      detailRequestIdRef.current += 1;
       setDetail(null);
       setDetailPosts([]);
       setDetailStreamPostIds([]);
@@ -275,46 +310,7 @@ export function TopicsPage() {
       setDetailLoading(false);
       return;
     }
-
-    let cancelled = false;
-
-    const loadDetail = async () => {
-      setDetailLoading(true);
-      setDetailError("");
-
-      try {
-        const data = await fetchTopicDetail(selectedTopic.id);
-        if (!cancelled) {
-          setDetail(data);
-          const initialPosts = data.post_stream?.posts ?? [];
-          const streamIds = data.post_stream?.stream ?? initialPosts.map((post) => post.id);
-          setDetailPosts(initialPosts);
-          setDetailStreamPostIds(streamIds);
-          setHasMorePosts(streamIds.length > initialPosts.length);
-          setLoadingMorePosts(false);
-        }
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) {
-          setDetail(null);
-          setDetailPosts([]);
-          setDetailStreamPostIds([]);
-          setHasMorePosts(false);
-          setLoadingMorePosts(false);
-          setDetailError("Failed to load topic detail.");
-        }
-      } finally {
-        if (!cancelled) {
-          setDetailLoading(false);
-        }
-      }
-    };
-
-    void loadDetail();
-
-    return () => {
-      cancelled = true;
-    };
+    void refreshDetail(selectedTopic.id);
   }, [selectedTopic?.id]);
 
   const loadMoreDetailPosts = async () => {
@@ -411,6 +407,10 @@ export function TopicsPage() {
             onLoadMorePosts={() => {
               void loadMoreDetailPosts();
             }}
+            onRetryDetail={() => {
+              if (!selectedTopic?.id) return;
+              void refreshDetail(selectedTopic.id);
+            }}
           />
         </div>
       ) : (
@@ -487,6 +487,10 @@ export function TopicsPage() {
               hasMorePosts={hasMorePosts}
               onLoadMorePosts={() => {
                 void loadMoreDetailPosts();
+              }}
+              onRetryDetail={() => {
+                if (!selectedTopic?.id) return;
+                void refreshDetail(selectedTopic.id);
               }}
             />
           </div>
