@@ -48,8 +48,8 @@ export function TopicDetailPanel({
 
   return (
     <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
-      <CardContent className="flex h-full flex-col p-8">
-        <div className="flex h-full min-h-0 flex-col">
+      <CardContent className="h-full overflow-auto p-8">
+        <div className="flex min-h-full flex-col">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-3">
               <div className="text-sm font-medium text-slate-500">
@@ -81,9 +81,9 @@ export function TopicDetailPanel({
             </div>
           </div>
 
-          <div className="mt-6 min-h-0 flex-1 overflow-auto pr-2">
+          <div className="mt-6 pr-2">
             {detailLoading ? (
-              <div className="flex h-full items-center justify-center">
+              <div className="flex min-h-[220px] items-center justify-center">
                 <CircularProgress size={28} />
               </div>
             ) : detailError ? (
