@@ -50,11 +50,13 @@ async fn open_login_webview(
                 tauri::async_runtime::spawn(async move {
                     if let Ok(Some(cookie_header)) = get_linuxdo_cookie_header_from_webview(window.clone()).await
                     {
-                        let _ = app_handle.emit_to(
-                            main_label,
-                            "linuxdo-login-status",
-                            LoginStatusPayload { cookie_header },
-                        );
+                        if app_handle.get_webview_window(&main_label).is_some() {
+                            let _ = app_handle.emit_to(
+                                main_label,
+                                "linuxdo-login-status",
+                                LoginStatusPayload { cookie_header },
+                            );
+                        }
                         closed_after_login_success.store(true, Ordering::Relaxed);
                         let _ = window.close();
                     }
@@ -69,13 +71,18 @@ async fn open_login_webview(
         let should_emit_empty = matches!(event, WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed)
             && !close_event_flag.load(Ordering::Relaxed);
         if should_emit_empty {
-            let _ = close_event_app_handle.emit_to(
-                close_event_main_label.clone(),
-                "linuxdo-login-status",
-                LoginStatusPayload {
-                    cookie_header: String::new(),
-                },
-            );
+            if close_event_app_handle
+                .get_webview_window(&close_event_main_label)
+                .is_some()
+            {
+                let _ = close_event_app_handle.emit_to(
+                    close_event_main_label.clone(),
+                    "linuxdo-login-status",
+                    LoginStatusPayload {
+                        cookie_header: String::new(),
+                    },
+                );
+            }
         }
     });
 
@@ -101,7 +108,12 @@ async fn clear_linuxdo_browsing_data(app: tauri::AppHandle) -> Result<(), String
 }
 
 #[tauri::command]
-async fn open_topic_window(app: tauri::AppHandle, topic_id: u64) -> Result<(), String> {
+async fn open_topic_window(
+    app: tauri::AppHandle,
+    topic_id: u64,
+    width: Option<f64>,
+    height: Option<f64>,
+) -> Result<(), String> {
     let label = format!("{TOPIC_WINDOW_LABEL_PREFIX}{topic_id}");
     if let Some(existing) = app.get_webview_window(&label) {
         let _ = existing.set_focus();
@@ -117,9 +129,18 @@ if (window.location.hash !== "{target_hash}") {{
 "#
     );
 
+    let window_width = width
+        .unwrap_or(1180.0)
+        .round()
+        .clamp(420.0, 3000.0);
+    let window_height = height
+        .unwrap_or(820.0)
+        .round()
+        .clamp(540.0, 2200.0);
+
     WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html".into()))
         .title(&format!("Topic #{topic_id}"))
-        .inner_size(1180.0, 820.0)
+        .inner_size(window_width, window_height)
         .resizable(true)
         .focused(true)
         .initialization_script(&init_script)

@@ -63,8 +63,8 @@ export async function clearLinuxDoBrowsingData() {
   return invoke("clear_linuxdo_browsing_data");
 }
 
-export async function openTopicWindow(topicId: number) {
-  return invoke("open_topic_window", { topicId });
+export async function openTopicWindow(topicId: number, width?: number, height?: number) {
+  return invoke("open_topic_window", { topicId, width, height });
 }
 
 function createAuthHeaders(extraHeaders?: Record<string, string>) {

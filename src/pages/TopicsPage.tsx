@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useLocation } from "react-router-dom";
 import Lightbox from "yet-another-react-lightbox";
@@ -12,6 +12,7 @@ import {
 } from "../api/linuxdo";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
 import { getTopicAuthor } from "../utils/topics";
+import { readLayoutNumber, writeLayoutNumber } from "../utils/layoutStore";
 import { TopicDetailPanel } from "./topics/TopicDetailPanel";
 import { TopicListPanel } from "./topics/TopicListPanel";
 import { renderCookedContent } from "./topics/renderCookedContent";
@@ -58,6 +59,11 @@ export function TopicsPage() {
   const location = useLocation();
   const query = new URLSearchParams(location.search);
   const isMinimal = query.get("minimal") === "1";
+  const panelsRef = useRef<HTMLDivElement | null>(null);
+  const [listWidth, setListWidth] = useState(420);
+  const [listWidthReady, setListWidthReady] = useState(false);
+  const draggingListRef = useRef(false);
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [users, setUsers] = useState<Record<number, TopicUser>>({});
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -81,6 +87,46 @@ export function TopicsPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxSlides, setLightboxSlides] = useState<Array<{ src: string }>>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  useEffect(() => {
+    void readLayoutNumber("layout.topicsListWidth", 420).then((value) => {
+      setListWidth(Math.max(300, Math.min(720, Math.round(value))));
+      setListWidthReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!listWidthReady || isMinimal) return;
+    const timer = window.setTimeout(() => {
+      void writeLayoutNumber("layout.topicsListWidth", listWidth);
+    }, 1000);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isMinimal, listWidth, listWidthReady]);
+
+  useEffect(() => {
+    const onMouseMove = (event: MouseEvent) => {
+      if (!draggingListRef.current || isMinimal) return;
+      const panelsRect = panelsRef.current?.getBoundingClientRect();
+      if (!panelsRect) return;
+      const next = Math.max(300, Math.min(720, Math.round(event.clientX - panelsRect.left)));
+      setListWidth(next);
+    };
+
+    const onMouseUp = () => {
+      draggingListRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [isMinimal]);
 
   const refreshTopics = async () => {
     setLoading(true);
@@ -321,7 +367,22 @@ export function TopicsPage() {
             }
             const topicId = extractLinuxDoTopicId(url);
             if (topicId) {
-              void openTopicWindow(topicId);
+              void (async () => {
+                const detailWidth = detailPanelRef.current
+                  ? Math.round(detailPanelRef.current.getBoundingClientRect().width)
+                  : undefined;
+                const savedMainHeight = await readLayoutNumber(
+                  "layout.mainWindowHeight",
+                  Math.max(window.innerHeight, 540),
+                );
+                const fallbackLogicalHeight = Math.max(window.innerHeight, 540);
+                const dpr = Math.max(window.devicePixelRatio || 1, 1);
+                const normalizedHeight =
+                  savedMainHeight > fallbackLogicalHeight * 1.25
+                    ? savedMainHeight / dpr
+                    : savedMainHeight;
+                await openTopicWindow(topicId, detailWidth, normalizedHeight);
+              })();
               return;
             }
             void openUrl(url);
@@ -353,69 +414,82 @@ export function TopicsPage() {
           />
         </div>
       ) : (
-        <div className="grid h-[calc(100vh-2rem)] grid-cols-[420px_minmax(0,1fr)] gap-4">
-          <TopicListPanel
-            filteredTopics={visibleTopics}
-            selectedTopic={selectedTopic}
-            users={visibleUsers}
-            loading={loading || searchLoading}
-            error={searchError || error}
-            keyword={keyword}
-            onKeywordChange={setKeyword}
-            onRefresh={() => {
-              if (usingSearch) {
-                const term = keyword.trim();
-                if (!term) return;
-                setSearchLoading(true);
-                setSearchError("");
-                void searchTopics(term, 1)
-                  .then((data) => {
-                    const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
-                    setSearchTopicsList(data.topics);
-                    setSearchUsers(nextUsers);
-                    setSelectedId((currentId) => {
-                      if (currentId && data.topics.some((topic) => topic.id === currentId)) {
-                        return currentId;
-                      }
-                      return data.topics[0]?.id ?? null;
+        <div ref={panelsRef} className="flex h-[calc(100vh-2rem)] gap-3">
+          <div className="shrink-0" style={{ width: `${listWidth}px` }}>
+            <TopicListPanel
+              filteredTopics={visibleTopics}
+              selectedTopic={selectedTopic}
+              users={visibleUsers}
+              loading={loading || searchLoading}
+              error={searchError || error}
+              keyword={keyword}
+              onKeywordChange={setKeyword}
+              onRefresh={() => {
+                if (usingSearch) {
+                  const term = keyword.trim();
+                  if (!term) return;
+                  setSearchLoading(true);
+                  setSearchError("");
+                  void searchTopics(term, 1)
+                    .then((data) => {
+                      const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
+                      setSearchTopicsList(data.topics);
+                      setSearchUsers(nextUsers);
+                      setSelectedId((currentId) => {
+                        if (currentId && data.topics.some((topic) => topic.id === currentId)) {
+                          return currentId;
+                        }
+                        return data.topics[0]?.id ?? null;
+                      });
+                    })
+                    .catch((err: unknown) => {
+                      console.error(err);
+                      setSearchTopicsList([]);
+                      setSearchUsers({});
+                      setSearchError("Failed to search topics.");
+                    })
+                    .finally(() => {
+                      setSearchLoading(false);
                     });
-                  })
-                  .catch((err: unknown) => {
-                    console.error(err);
-                    setSearchTopicsList([]);
-                    setSearchUsers({});
-                    setSearchError("Failed to search topics.");
-                  })
-                  .finally(() => {
-                    setSearchLoading(false);
-                  });
-                return;
-              }
-              void refreshTopics();
-            }}
-            onSelectTopic={setSelectedId}
-            loadingMore={usingSearch ? false : loadingMore}
-            hasMore={usingSearch ? false : hasMore}
-            onLoadMore={() => {
-              void loadMoreTopics();
+                  return;
+                }
+                void refreshTopics();
+              }}
+              onSelectTopic={setSelectedId}
+              loadingMore={usingSearch ? false : loadingMore}
+              hasMore={usingSearch ? false : hasMore}
+              onLoadMore={() => {
+                void loadMoreTopics();
+              }}
+            />
+          </div>
+
+          <div
+            className="w-1 shrink-0 cursor-col-resize rounded bg-slate-200/80 hover:bg-slate-300"
+            onMouseDown={() => {
+              draggingListRef.current = true;
+              document.body.style.cursor = "col-resize";
+              document.body.style.userSelect = "none";
             }}
           />
 
-          <TopicDetailPanel
-            selectedTopic={selectedTopic}
-            detail={detail}
-            detailAuthor={detailAuthor}
-            detailLikeCount={detailLikeCount}
-            detailLoading={detailLoading}
-            detailError={detailError}
-            posts={posts}
-            renderPostContent={(post) => postContentMap.get(post.id) ?? null}
-            loadingMorePosts={loadingMorePosts}
-            hasMorePosts={hasMorePosts}
-            onLoadMorePosts={() => {
-              void loadMoreDetailPosts();
-            }}
-          />
+          <div ref={detailPanelRef} className="min-w-0 flex-1">
+            <TopicDetailPanel
+              selectedTopic={selectedTopic}
+              detail={detail}
+              detailAuthor={detailAuthor}
+              detailLikeCount={detailLikeCount}
+              detailLoading={detailLoading}
+              detailError={detailError}
+              posts={posts}
+              renderPostContent={(post) => postContentMap.get(post.id) ?? null}
+              loadingMorePosts={loadingMorePosts}
+              hasMorePosts={hasMorePosts}
+              onLoadMorePosts={() => {
+                void loadMoreDetailPosts();
+              }}
+            />
+          </div>
         </div>
       )}
 
