@@ -96,6 +96,24 @@ async fn get_linuxdo_cookie_header(app: tauri::AppHandle) -> Result<Option<Strin
     }
 }
 
+#[tauri::command]
+async fn clear_linuxdo_browsing_data(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(login_window) = app.get_webview_window(LOGIN_WINDOW_LABEL) {
+        login_window
+            .clear_all_browsing_data()
+            .map_err(|error| error.to_string())?;
+        let _ = login_window.close();
+    }
+
+    if let Some(main_window) = app.get_webview_window("main") {
+        main_window
+            .clear_all_browsing_data()
+            .map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
+}
+
 fn is_logged_in_url(url: &str) -> bool {
     let prefixes = [
         "https://linux.do/latest",
@@ -117,7 +135,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             open_login_webview,
-            get_linuxdo_cookie_header
+            get_linuxdo_cookie_header,
+            clear_linuxdo_browsing_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

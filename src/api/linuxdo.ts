@@ -3,16 +3,16 @@ import { fetch } from "@tauri-apps/plugin-http";
 import type { LatestTopicsResponse, TopicDetailResponse } from "../types/topic";
 import { BASE_URL } from "../utils/topics";
 
-type CsrfResponse = {
-  csrf?: string;
-};
-
 export async function getLinuxDoCookieHeader() {
   return invoke<string | null>("get_linuxdo_cookie_header");
 }
 
 export async function openLinuxDoLogin() {
   return invoke("open_login_webview");
+}
+
+export async function clearLinuxDoBrowsingData() {
+  return invoke("clear_linuxdo_browsing_data");
 }
 
 async function createAuthHeaders(extraHeaders?: Record<string, string>) {
@@ -39,58 +39,8 @@ export async function hasLinuxDoSession() {
   return /(?:^|;\s*)_t=/.test(cookieHeader);
 }
 
-export async function fetchCsrfToken() {
-  const response = await fetch(`${BASE_URL}/session/csrf`, {
-    method: "GET",
-    headers: await createAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-
-  const data = (await response.json()) as CsrfResponse;
-  const csrfToken = data.csrf?.trim();
-
-  if (!csrfToken) {
-    throw new Error("CSRF_TOKEN_MISSING");
-  }
-
-  return csrfToken;
-}
-
 export async function logoutLinuxDo() {
-  const sessionResponse = await fetch(`${BASE_URL}/session/current.json`, {
-    method: "GET",
-    headers: await createAuthHeaders(),
-  });
-
-  if (!sessionResponse.ok) {
-    throw new Error(`HTTP ${sessionResponse.status}`);
-  }
-
-  const session = (await sessionResponse.json()) as {
-    current_user?: {
-      username?: string;
-    } | null;
-  };
-  const username = session.current_user?.username?.trim();
-
-  if (!username) {
-    throw new Error("AUTH_REQUIRED");
-  }
-
-  const csrfToken = await fetchCsrfToken();
-  const response = await fetch(`${BASE_URL}/session/${encodeURIComponent(username)}`, {
-    method: "DELETE",
-    headers: await createAuthHeaders({
-      "X-CSRF-Token": csrfToken,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
+  await clearLinuxDoBrowsingData();
 }
 
 export async function fetchLatestTopics() {
