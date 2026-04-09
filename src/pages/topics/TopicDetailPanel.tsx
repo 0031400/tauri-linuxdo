@@ -89,6 +89,18 @@ export function TopicDetailPanel({
               <Alert severity="error">{detailError}</Alert>
             ) : posts.length > 0 ? (
               <div className="space-y-4">
+                {tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map((tag) => (
+                      <span
+                        key={getTopicTagKey(tag)}
+                        className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600"
+                      >
+                        #{getTopicTagLabel(tag)}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 {posts.map((post, index) => {
                   const floor = post.post_number ?? index + 1;
                   const content = renderPostContent(post);
@@ -128,19 +140,6 @@ export function TopicDetailPanel({
               </div>
             )}
           </div>
-
-          {tags.length > 0 ? (
-            <div className="mt-6 flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <span
-                  key={getTopicTagKey(tag)}
-                  className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600"
-                >
-                  #{getTopicTagLabel(tag)}
-                </span>
-              ))}
-            </div>
-          ) : null}
 
         </div>
       </CardContent>
