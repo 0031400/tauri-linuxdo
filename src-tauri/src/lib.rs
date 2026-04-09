@@ -44,16 +44,25 @@ async fn open_login_webview(
                 },
             );
 
-            if matches!(payload.event(), PageLoadEvent::Finished) && is_logged_in_url(&url) {
-                let _ = app_handle.emit_to(
-                    main_label.clone(),
-                    "linuxdo-login-status",
-                    LoginStatusPayload {
-                        url,
-                        logged_in: true,
-                    },
-                );
-                let _ = window.close();
+            if matches!(payload.event(), PageLoadEvent::Finished) {
+                let app_handle = app_handle.clone();
+                let main_label = main_label.clone();
+                let window = window.clone();
+                let event_url = url.clone();
+
+                tauri::async_runtime::spawn(async move {
+                    if let Ok(true) = has_linuxdo_t_cookie(window.clone()).await {
+                        let _ = app_handle.emit_to(
+                            main_label,
+                            "linuxdo-login-status",
+                            LoginStatusPayload {
+                                url: event_url,
+                                logged_in: true,
+                            },
+                        );
+                        let _ = window.close();
+                    }
+                });
             }
         })
         .build()
@@ -114,18 +123,16 @@ async fn clear_linuxdo_browsing_data(app: tauri::AppHandle) -> Result<(), String
     Ok(())
 }
 
-fn is_logged_in_url(url: &str) -> bool {
-    let prefixes = [
-        "https://linux.do/latest",
-        "https://linux.do/new",
-        "https://linux.do/unread",
-        "https://linux.do/my",
-        "https://linux.do/u/",
-        "https://linux.do/c/",
-        "https://linux.do/t/",
-    ];
+async fn has_linuxdo_t_cookie(webview: WebviewWindow) -> Result<bool, String> {
+    let cookie_url = Url::parse(BASE_URL).map_err(|error| error.to_string())?;
+    let cookies = tauri::async_runtime::spawn_blocking(move || webview.cookies_for_url(cookie_url))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())?;
 
-    prefixes.iter().any(|prefix| url.starts_with(prefix))
+    Ok(cookies
+        .into_iter()
+        .any(|cookie| cookie.name() == "_t" && !cookie.value().is_empty()))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
