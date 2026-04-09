@@ -12,7 +12,6 @@ import {
 } from "@mui/material";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { fetchLatestTopics, fetchTopicDetail } from "../api/linuxdo";
-import { SESSION_EVENT } from "../utils/session";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
 import {
   buildAvatarUrl,
@@ -69,16 +68,7 @@ export function TopicsPage() {
       }
     };
 
-    const handleSessionChange = () => {
-      void load();
-    };
-
     void load();
-    window.addEventListener(SESSION_EVENT, handleSessionChange);
-
-    return () => {
-      window.removeEventListener(SESSION_EVENT, handleSessionChange);
-    };
   }, []);
 
   const filteredTopics = useMemo(() => {
