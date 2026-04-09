@@ -3,6 +3,7 @@ import { fetch } from "@tauri-apps/plugin-http";
 import { load } from "@tauri-apps/plugin-store";
 import type {
   LatestTopicsResponse,
+  TopicCategory,
   SearchTopicsResponse,
   TopicDetailResponse,
   TopicItem,
@@ -107,6 +108,71 @@ export async function fetchLatestTopics(page = 0) {
   }
 
   return response.json() as Promise<LatestTopicsResponse>;
+}
+
+export async function fetchLatestTopicsByCategory(categorySlug: string, page = 0) {
+  const safeSlug = categorySlug.trim();
+  if (!safeSlug) {
+    return fetchLatestTopics(page);
+  }
+
+  const url = new URL(`${BASE_URL}/c/${encodeURIComponent(safeSlug)}/l/latest.json`);
+  if (page > 0) {
+    url.searchParams.set("page", String(page));
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: createAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  return response.json() as Promise<LatestTopicsResponse>;
+}
+
+export async function fetchTopicCategories() {
+  const response = await fetch(`${BASE_URL}/categories.json`, {
+    method: "GET",
+    headers: createAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    category_list?: {
+      categories?: Array<{
+        id?: number;
+        name?: string;
+        slug?: string;
+      }>;
+    };
+  };
+
+  return (data.category_list?.categories ?? [])
+    .filter((item): item is { id: number; name: string; slug: string } => {
+      return (
+        typeof item.id === "number" &&
+        Number.isInteger(item.id) &&
+        item.id > 0 &&
+        typeof item.name === "string" &&
+        item.name.trim().length > 0 &&
+        typeof item.slug === "string" &&
+        item.slug.trim().length > 0
+      );
+    })
+    .map(
+      (item) =>
+        ({
+          id: item.id,
+          name: item.name,
+          slug: item.slug,
+        }) satisfies TopicCategory,
+    );
 }
 
 export async function fetchTopicDetail(topicId: number) {

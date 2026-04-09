@@ -4,12 +4,14 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { Button, Card, CardContent, Chip, CircularProgress } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
+  fetchTopicCategories,
   hydrateLinuxDoCookieHeader,
   hasLinuxDoSession,
   logoutLinuxDo,
   openLinuxDoLogin,
   setLinuxDoCookieHeader,
 } from "../../api/linuxdo";
+import type { TopicCategory } from "../../types/topic";
 import { readLayoutNumber, writeLayoutNumber } from "../../utils/layoutStore";
 import { notifySessionChanged, SESSION_EVENT } from "../../utils/session";
 
@@ -21,10 +23,13 @@ export function DesktopShell() {
   const location = useLocation();
   const query = new URLSearchParams(location.search);
   const isMinimal = query.get("minimal") === "1";
+  const currentCategory = query.get("category")?.trim() || "";
   const layoutRootRef = useRef<HTMLDivElement | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [sidebarWidthReady, setSidebarWidthReady] = useState(false);
   const draggingSidebarRef = useRef(false);
+  const [categoryOpen, setCategoryOpen] = useState(true);
+  const [categories, setCategories] = useState<TopicCategory[]>([]);
   const [initializing, setInitializing] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
   const [checkingSession, setCheckingSession] = useState(false);
@@ -154,8 +159,23 @@ export function DesktopShell() {
       }
     };
 
+    const loadCategories = async () => {
+      try {
+        const items = await fetchTopicCategories();
+        setCategories(items);
+      } catch {
+        setCategories([]);
+      }
+    };
     const handleSessionChange = () => {
-      void refreshSession();
+      void (async () => {
+        const nextLoggedIn = await refreshSession();
+        if (nextLoggedIn) {
+          await loadCategories();
+        } else {
+          setCategories([]);
+        }
+      })();
     };
 
     let unlistenLoginStatus: (() => void) | undefined;
@@ -163,7 +183,12 @@ export function DesktopShell() {
     void (async () => {
       try {
         await hydrateLinuxDoCookieHeader();
-        await refreshSession();
+        const nextLoggedIn = await refreshSession();
+        if (nextLoggedIn) {
+          await loadCategories();
+        } else {
+          setCategories([]);
+        }
       } finally {
         setInitializing(false);
       }
@@ -172,7 +197,12 @@ export function DesktopShell() {
     void listen<LoginStatusPayload>("linuxdo-login-status", async (event) => {
       await setLinuxDoCookieHeader(event.payload.cookie_header);
       setOpeningLogin(false);
-      await refreshSession();
+      const nextLoggedIn = await refreshSession();
+      if (nextLoggedIn) {
+        await loadCategories();
+      } else {
+        setCategories([]);
+      }
       notifySessionChanged();
     }).then((unlisten) => {
       unlistenLoginStatus = unlisten;
@@ -198,6 +228,7 @@ export function DesktopShell() {
     setLoggingOut(true);
     try {
       await logoutLinuxDo();
+      setCategories([]);
       notifySessionChanged();
     } catch (error) {
       console.error(error);
@@ -238,16 +269,16 @@ export function DesktopShell() {
 
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-4 text-slate-900">
-      <div ref={layoutRootRef} className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1500px] gap-4">
+      <div ref={layoutRootRef} className="mx-auto flex h-[calc(100vh-2rem)] max-w-[1500px] gap-4">
         <aside className="shrink-0" style={{ width: `${sidebarWidth}px` }}>
           <Card className="h-full rounded-2xl border border-slate-200 shadow-md shadow-slate-200/60">
-            <CardContent className="flex h-full flex-col gap-4 p-4">
+            <CardContent className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4">
               <div className="space-y-1">
                 <div className="text-sm font-medium text-slate-500">Linux.do Desktop</div>
                 <div className="text-2xl font-semibold text-slate-900">工作台</div>
               </div>
 
-              <nav className="space-y-1.5">
+              <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                 {navItems.map((item) => {
                   const active = location.pathname === item.to;
                   return (
@@ -265,6 +296,47 @@ export function DesktopShell() {
                     </NavLink>
                   );
                 })}
+
+                <div className="rounded-xl bg-slate-50 p-1">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+                    onClick={() => setCategoryOpen((current) => !current)}
+                  >
+                    <span>类别</span>
+                    <span className="text-xs text-slate-500">{categoryOpen ? "收起" : "展开"}</span>
+                  </button>
+                  {categoryOpen ? (
+                    <div className="mt-1 space-y-1 px-1 pb-1">
+                      <NavLink
+                        to="/topics"
+                        className={[
+                          "block rounded-lg px-2 py-1.5 text-sm transition",
+                          location.pathname === "/topics" && !currentCategory
+                            ? "bg-slate-900 text-white"
+                            : "text-slate-600 hover:bg-slate-100",
+                        ].join(" ")}
+                      >
+                        全部
+                      </NavLink>
+                      {categories.map((category) => {
+                        const active = location.pathname === "/topics" && currentCategory === category.slug;
+                        return (
+                          <NavLink
+                            key={category.id}
+                            to={`/topics?category=${encodeURIComponent(category.slug)}`}
+                            className={[
+                              "block rounded-lg px-2 py-1.5 text-sm transition",
+                              active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
+                            ].join(" ")}
+                          >
+                            {category.name}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               </nav>
 
               <div className="mt-auto rounded-2xl bg-slate-50 p-3.5">

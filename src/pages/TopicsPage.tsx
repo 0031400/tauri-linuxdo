@@ -5,6 +5,7 @@ import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import {
   fetchLatestTopics,
+  fetchLatestTopicsByCategory,
   fetchTopicDetail,
   fetchTopicPosts,
   openTopicWindow,
@@ -59,6 +60,7 @@ export function TopicsPage() {
   const location = useLocation();
   const query = new URLSearchParams(location.search);
   const isMinimal = query.get("minimal") === "1";
+  const selectedCategorySlug = query.get("category")?.trim() || "";
   const panelsRef = useRef<HTMLDivElement | null>(null);
   const [listWidth, setListWidth] = useState(420);
   const [listWidthReady, setListWidthReady] = useState(false);
@@ -134,7 +136,9 @@ export function TopicsPage() {
     setError("");
 
     try {
-      const data = await fetchLatestTopics(0);
+      const data = selectedCategorySlug
+        ? await fetchLatestTopicsByCategory(selectedCategorySlug, 0)
+        : await fetchLatestTopics(0);
       const nextTopics = data.topic_list?.topics ?? [];
       const nextUsers = Object.fromEntries((data.users ?? []).map((user) => [user.id, user] as const));
 
@@ -162,7 +166,7 @@ export function TopicsPage() {
   useEffect(() => {
     if (isMinimal) return;
     void refreshTopics();
-  }, [isMinimal]);
+  }, [isMinimal, selectedCategorySlug]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -250,7 +254,9 @@ export function TopicsPage() {
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const data = await fetchLatestTopics(nextPage);
+      const data = selectedCategorySlug
+        ? await fetchLatestTopicsByCategory(selectedCategorySlug, nextPage)
+        : await fetchLatestTopics(nextPage);
       const incomingTopics = data.topic_list?.topics ?? [];
       const incomingUsers = Object.fromEntries((data.users ?? []).map((user) => [user.id, user] as const));
 

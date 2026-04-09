@@ -12,6 +12,7 @@ export type TopicTag =
 
 export type TopicItem = {
   id: number;
+  category_id?: number;
   title?: string;
   fancy_title?: string;
   slug?: string;
@@ -23,6 +24,12 @@ export type TopicItem = {
   tags?: TopicTag[];
   posters?: TopicPoster[];
   excerpt?: string;
+};
+
+export type TopicCategory = {
+  id: number;
+  name: string;
+  slug: string;
 };
 
 export type TopicUser = {
