@@ -78,5 +78,6 @@ export type TopicDetailResponse = {
   };
   post_stream?: {
     posts?: TopicPost[];
+    stream?: number[];
   };
 };

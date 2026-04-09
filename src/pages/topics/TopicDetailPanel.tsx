@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Alert, Button, Card, CardContent, Chip, CircularProgress, Divider } from "@mui/material";
+import type { UIEvent } from "react";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicTag, TopicUser } from "../../types/topic";
 import { formatAbsoluteTime, getTopicTagKey, getTopicTagLabel, getTopicTitle } from "../../utils/topics";
 
@@ -13,6 +14,9 @@ type TopicDetailPanelProps = {
   firstPost: TopicPost | null;
   posts: TopicPost[];
   renderPostContent: (post: TopicPost) => ReactNode[] | null;
+  loadingMorePosts: boolean;
+  hasMorePosts: boolean;
+  onLoadMorePosts: () => void;
   onOpenOriginal: () => void;
   onKeepSelected: () => void;
 };
@@ -31,9 +35,20 @@ export function TopicDetailPanel({
   firstPost,
   posts,
   renderPostContent,
+  loadingMorePosts,
+  hasMorePosts,
+  onLoadMorePosts,
   onOpenOriginal,
   onKeepSelected,
 }: TopicDetailPanelProps) {
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    if (loadingMorePosts || !hasMorePosts || detailLoading || detailError) return;
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+    if (scrollHeight - (scrollTop + clientHeight) < 120) {
+      onLoadMorePosts();
+    }
+  };
+
   if (!selectedTopic) {
     return (
       <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
@@ -48,7 +63,7 @@ export function TopicDetailPanel({
 
   return (
     <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
-      <CardContent className="h-full overflow-auto p-8">
+      <CardContent className="h-full overflow-auto p-8" onScroll={handleScroll}>
         <div className="flex min-h-full flex-col">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-3">
@@ -130,6 +145,14 @@ export function TopicDetailPanel({
                     </div>
                   );
                 })}
+                {loadingMorePosts ? (
+                  <div className="flex justify-center py-2">
+                    <CircularProgress size={22} />
+                  </div>
+                ) : null}
+                {!hasMorePosts ? (
+                  <div className="py-2 text-center text-xs text-slate-400">No more posts</div>
+                ) : null}
               </div>
             ) : (
               <div className="space-y-4 text-[15px] leading-7 text-slate-600">

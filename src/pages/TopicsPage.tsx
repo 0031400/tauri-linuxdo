@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
-import { fetchLatestTopics, fetchTopicDetail, searchTopics } from "../api/linuxdo";
+import { fetchLatestTopics, fetchTopicDetail, fetchTopicPosts, searchTopics } from "../api/linuxdo";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
 import { getTopicAuthor, getTopicUrl } from "../utils/topics";
 import { TopicDetailPanel } from "./topics/TopicDetailPanel";
@@ -20,6 +20,13 @@ function mergeTopics(current: TopicItem[], incoming: TopicItem[]) {
   return Array.from(topicMap.values());
 }
 
+function mergePosts(current: TopicPost[], incoming: TopicPost[]) {
+  const postMap = new Map<number, TopicPost>();
+  for (const post of current) postMap.set(post.id, post);
+  for (const post of incoming) postMap.set(post.id, post);
+  return Array.from(postMap.values()).sort((a, b) => (a.post_number ?? 0) - (b.post_number ?? 0));
+}
+
 export function TopicsPage() {
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [users, setUsers] = useState<Record<number, TopicUser>>({});
@@ -30,6 +37,10 @@ export function TopicsPage() {
   const [detail, setDetail] = useState<TopicDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [detailPosts, setDetailPosts] = useState<TopicPost[]>([]);
+  const [detailStreamPostIds, setDetailStreamPostIds] = useState<number[]>([]);
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
+  const [hasMorePosts, setHasMorePosts] = useState(false);
   const [searchTopicsList, setSearchTopicsList] = useState<TopicItem[]>([]);
   const [searchUsers, setSearchUsers] = useState<Record<number, TopicUser>>({});
   const [searchLoading, setSearchLoading] = useState(false);
@@ -159,6 +170,10 @@ export function TopicsPage() {
   useEffect(() => {
     if (!selectedTopic?.id) {
       setDetail(null);
+      setDetailPosts([]);
+      setDetailStreamPostIds([]);
+      setHasMorePosts(false);
+      setLoadingMorePosts(false);
       setDetailError("");
       setDetailLoading(false);
       return;
@@ -174,11 +189,21 @@ export function TopicsPage() {
         const data = await fetchTopicDetail(selectedTopic.id);
         if (!cancelled) {
           setDetail(data);
+          const initialPosts = data.post_stream?.posts ?? [];
+          const streamIds = data.post_stream?.stream ?? initialPosts.map((post) => post.id);
+          setDetailPosts(initialPosts);
+          setDetailStreamPostIds(streamIds);
+          setHasMorePosts(streamIds.length > initialPosts.length);
+          setLoadingMorePosts(false);
         }
       } catch (err) {
         console.error(err);
         if (!cancelled) {
           setDetail(null);
+          setDetailPosts([]);
+          setDetailStreamPostIds([]);
+          setHasMorePosts(false);
+          setLoadingMorePosts(false);
           setDetailError("Failed to load topic detail.");
         }
       } finally {
@@ -195,9 +220,35 @@ export function TopicsPage() {
     };
   }, [selectedTopic?.id]);
 
+  const loadMoreDetailPosts = async () => {
+    if (!selectedTopic?.id || detailLoading || loadingMorePosts || !hasMorePosts) return;
+
+    const loadedIdSet = new Set(detailPosts.map((post) => post.id));
+    const nextIds = detailStreamPostIds.filter((id) => !loadedIdSet.has(id)).slice(0, 20);
+    if (nextIds.length === 0) {
+      setHasMorePosts(false);
+      return;
+    }
+
+    setLoadingMorePosts(true);
+    try {
+      const incomingPosts = await fetchTopicPosts(selectedTopic.id, nextIds);
+      setDetailPosts((current) => {
+        const merged = mergePosts(current, incomingPosts);
+        const mergedIdSet = new Set(merged.map((post) => post.id));
+        setHasMorePosts(detailStreamPostIds.some((id) => !mergedIdSet.has(id)));
+        return merged;
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMorePosts(false);
+    }
+  };
+
   const selectedAuthor = selectedTopic ? getTopicAuthor(selectedTopic, visibleUsers) : null;
   const selectedTopicUrl = selectedTopic ? getTopicUrl(selectedTopic) : null;
-  const posts = detail?.post_stream?.posts ?? [];
+  const posts = detailPosts;
   const firstPost = posts[0] ?? null;
   const detailAuthor = detail?.details?.created_by ?? selectedAuthor ?? null;
   const detailLikeCount = detail?.like_count ?? getPostLikeCount(firstPost ?? undefined);
@@ -280,6 +331,11 @@ export function TopicsPage() {
         firstPost={firstPost}
         posts={posts}
         renderPostContent={(post) => postContentMap.get(post.id) ?? null}
+        loadingMorePosts={loadingMorePosts}
+        hasMorePosts={hasMorePosts}
+        onLoadMorePosts={() => {
+          void loadMoreDetailPosts();
+        }}
         onOpenOriginal={() => {
           if (selectedTopicUrl) {
             void openUrl(selectedTopicUrl);

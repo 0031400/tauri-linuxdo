@@ -6,6 +6,7 @@ import type {
   SearchTopicsResponse,
   TopicDetailResponse,
   TopicItem,
+  TopicPost,
 } from "../types/topic";
 import { BASE_URL } from "../utils/topics";
 
@@ -115,6 +116,33 @@ export async function fetchTopicDetail(topicId: number) {
   }
 
   return response.json() as Promise<TopicDetailResponse>;
+}
+
+export async function fetchTopicPosts(topicId: number, postIds: number[]) {
+  if (postIds.length === 0) return [] as TopicPost[];
+
+  const url = new URL(`${BASE_URL}/t/${topicId}/posts.json`);
+  for (const postId of postIds) {
+    url.searchParams.append("post_ids[]", String(postId));
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: createAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    post_stream?: {
+      posts?: TopicPost[];
+    };
+    posts?: TopicPost[];
+  };
+
+  return data.post_stream?.posts ?? data.posts ?? [];
 }
 
 type SearchRawResponse = {
