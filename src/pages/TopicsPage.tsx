@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
@@ -13,6 +13,7 @@ import {
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { TopicItem, TopicUser } from "../types/topic";
 import { fetchLatestTopics } from "../api/linuxdo";
+import { SESSION_EVENT } from "../utils/session";
 import {
   buildAvatarUrl,
   formatAbsoluteTime,
@@ -47,6 +48,9 @@ export function TopicsPage() {
         setSelectedId(nextTopics[0]?.id ?? null);
       } catch (err) {
         console.error(err);
+        setTopics([]);
+        setUsers({});
+        setSelectedId(null);
         if (err instanceof Error && err.message === "AUTH_REQUIRED") {
           setError("请先登录后再加载文章列表");
         } else {
@@ -57,7 +61,16 @@ export function TopicsPage() {
       }
     };
 
+    const handleSessionChange = () => {
+      void load();
+    };
+
     void load();
+    window.addEventListener(SESSION_EVENT, handleSessionChange);
+
+    return () => {
+      window.removeEventListener(SESSION_EVENT, handleSessionChange);
+    };
   }, []);
 
   const filteredTopics = useMemo(() => {

@@ -1,24 +1,50 @@
-﻿import { useEffect, useState } from "react";
-import { Card, CardContent, Chip } from "@mui/material";
+import { useEffect, useState } from "react";
+import { Button, Card, CardContent, Chip } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { getLinuxDoCookieHeader } from "../../api/linuxdo";
+import { hasLinuxDoSession, logoutLinuxDo } from "../../api/linuxdo";
+import { notifySessionChanged, SESSION_EVENT } from "../../utils/session";
 
 export function DesktopShell() {
   const location = useLocation();
   const [loggedIn, setLoggedIn] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     const check = async () => {
+      setCheckingSession(true);
       try {
-        const cookieHeader = await getLinuxDoCookieHeader();
-        setLoggedIn(Boolean(cookieHeader && cookieHeader.trim()));
+        setLoggedIn(await hasLinuxDoSession());
       } catch {
         setLoggedIn(false);
+      } finally {
+        setCheckingSession(false);
       }
     };
 
+    const handleSessionChange = () => {
+      void check();
+    };
+
     void check();
+    window.addEventListener(SESSION_EVENT, handleSessionChange);
+
+    return () => {
+      window.removeEventListener(SESSION_EVENT, handleSessionChange);
+    };
   }, []);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logoutLinuxDo();
+      notifySessionChanged();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   const navItems = [
     { to: "/topics", label: "文章" },
@@ -72,6 +98,20 @@ export function DesktopShell() {
                     size="small"
                   />
                 </div>
+
+                {loggedIn ? (
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    className="mt-4 h-10 rounded-2xl"
+                    onClick={() => {
+                      void handleLogout();
+                    }}
+                    disabled={checkingSession || loggingOut}
+                  >
+                    {loggingOut ? "退出中..." : "退出登录"}
+                  </Button>
+                ) : null}
               </div>
             </CardContent>
           </Card>
