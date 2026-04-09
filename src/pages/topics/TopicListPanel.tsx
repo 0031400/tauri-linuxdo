@@ -1,4 +1,4 @@
-import { Alert, Avatar, Button, Card, CardContent, CircularProgress, Divider, TextField } from "@mui/material";
+import { Alert, Avatar, Button, Card, CardContent, CircularProgress, TextField } from "@mui/material";
 import type { UIEvent } from "react";
 import type { TopicItem, TopicUser } from "../../types/topic";
 import {
@@ -50,28 +50,19 @@ export function TopicListPanel({
 
   return (
     <Card className="h-full overflow-hidden rounded-2xl border border-slate-200 shadow-md shadow-slate-200/60">
-      <CardContent className="flex h-full flex-col gap-4 p-4">
-        <div className="space-y-1">
-          <div className="text-sm font-medium text-slate-500">Topics</div>
-          <div className="text-xl font-semibold text-slate-900">Latest Posts</div>
-        </div>
-
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="Search title or tag"
-          value={keyword}
-          onChange={(event) => onKeywordChange(event.target.value)}
-        />
-
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-slate-500">Total {filteredTopics.length}</div>
-          <Button variant="outlined" className="h-8 rounded-xl" onClick={onRefresh}>
+      <CardContent className="flex h-full min-h-0 flex-col gap-3 p-4">
+        <div className="flex items-center gap-2">
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search title or tag"
+            value={keyword}
+            onChange={(event) => onKeywordChange(event.target.value)}
+          />
+          <Button variant="outlined" className="h-10 shrink-0 rounded-xl px-4" onClick={onRefresh}>
             Refresh
           </Button>
         </div>
-
-        <Divider />
 
         {loading ? (
           <div className="flex flex-1 items-center justify-center">
