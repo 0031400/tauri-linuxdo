@@ -99,8 +99,8 @@ export function DesktopShell() {
 
   if (initializing) {
     return (
-      <main className="min-h-screen bg-slate-100 px-6 py-6 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1600px] items-center justify-center">
+      <main className="min-h-screen bg-slate-100 px-4 py-4 text-slate-900">
+        <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1500px] items-center justify-center">
           <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm">
             <CircularProgress size={22} />
             <span className="text-sm text-slate-600">加载中...</span>
@@ -111,17 +111,17 @@ export function DesktopShell() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 px-6 py-6 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1600px] gap-6">
-        <aside className="w-64 shrink-0">
-          <Card className="h-full rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
-            <CardContent className="flex h-full flex-col gap-6 p-6">
+    <main className="min-h-screen bg-slate-100 px-4 py-4 text-slate-900">
+      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1500px] gap-4">
+        <aside className="w-60 shrink-0">
+          <Card className="h-full rounded-2xl border border-slate-200 shadow-md shadow-slate-200/60">
+            <CardContent className="flex h-full flex-col gap-4 p-4">
               <div className="space-y-1">
                 <div className="text-sm font-medium text-slate-500">Linux.do Desktop</div>
                 <div className="text-2xl font-semibold text-slate-900">工作台</div>
               </div>
 
-              <nav className="space-y-2">
+              <nav className="space-y-1.5">
                 {navItems.map((item) => {
                   const active = location.pathname === item.to;
                   return (
@@ -129,7 +129,7 @@ export function DesktopShell() {
                       key={item.to}
                       to={item.to}
                       className={[
-                        "flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition",
+                        "flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition",
                         active
                           ? "bg-slate-900 text-white"
                           : "bg-slate-50 text-slate-700 hover:bg-slate-200",
@@ -141,7 +141,7 @@ export function DesktopShell() {
                 })}
               </nav>
 
-              <div className="mt-auto rounded-3xl bg-slate-50 p-4">
+              <div className="mt-auto rounded-2xl bg-slate-50 p-3.5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-medium text-slate-700">当前状态</div>
@@ -160,7 +160,7 @@ export function DesktopShell() {
                   <Button
                     fullWidth
                     variant="outlined"
-                    className="mt-4 h-10 rounded-2xl"
+                    className="mt-3 h-9 rounded-xl"
                     onClick={() => {
                       void handleLogout();
                     }}
@@ -172,7 +172,7 @@ export function DesktopShell() {
                   <Button
                     fullWidth
                     variant="contained"
-                    className="mt-4 h-10 rounded-2xl"
+                    className="mt-3 h-9 rounded-xl"
                     onClick={() => {
                       void handleLogin();
                     }}

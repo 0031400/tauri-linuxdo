@@ -311,7 +311,7 @@ export function TopicsPage() {
   }, [posts]);
 
   return (
-    <div className="grid h-[calc(100vh-3rem)] grid-cols-[460px_minmax(0,1fr)] gap-6">
+    <div className="grid h-[calc(100vh-2rem)] grid-cols-[420px_minmax(0,1fr)] gap-4">
       <TopicListPanel
         filteredTopics={visibleTopics}
         selectedTopic={selectedTopic}

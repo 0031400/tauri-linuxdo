@@ -51,7 +51,7 @@ export function TopicDetailPanel({
 
   if (!selectedTopic) {
     return (
-      <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
+      <Card className="h-full overflow-hidden rounded-2xl border border-slate-200 shadow-md shadow-slate-200/60">
         <CardContent className="flex h-full items-center justify-center text-slate-500">
           No topic selected
         </CardContent>
@@ -62,16 +62,16 @@ export function TopicDetailPanel({
   const tags = getTags(detail, selectedTopic);
 
   return (
-    <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
-      <CardContent className="h-full overflow-auto p-8" onScroll={handleScroll}>
+    <Card className="h-full overflow-hidden rounded-2xl border border-slate-200 shadow-md shadow-slate-200/60">
+      <CardContent className="h-full overflow-auto p-4" onScroll={handleScroll}>
         <div className="flex min-h-full flex-col">
-          <div className="rounded-2xl bg-slate-50/70 px-4 py-3">
+          <div className="rounded-xl bg-slate-50/70 px-3 py-2.5">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1.5">
                 <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 {detailAuthor?.name || detailAuthor?.username || "linux.do"}
                 </div>
-                <h2 className="text-2xl font-semibold text-slate-900">{getTopicTitle(selectedTopic)}</h2>
+                <h2 className="text-xl font-semibold text-slate-900">{getTopicTitle(selectedTopic)}</h2>
               </div>
               <Chip
                 label={`${detail?.posts_count ?? selectedTopic.posts_count ?? 0} replies`}
@@ -86,7 +86,7 @@ export function TopicDetailPanel({
             </div>
           </div>
 
-          <div className="mt-6 pr-2">
+          <div className="mt-4 pr-1">
             {detailLoading ? (
               <div className="flex min-h-[220px] items-center justify-center">
                 <CircularProgress size={28} />
@@ -94,7 +94,7 @@ export function TopicDetailPanel({
             ) : detailError ? (
               <Alert severity="error">{detailError}</Alert>
             ) : posts.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {tags.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {tags.map((tag) => (
@@ -115,8 +115,8 @@ export function TopicDetailPanel({
 
                   return (
                     <div key={post.id}>
-                      <article className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <div className="mb-3 flex items-center justify-between gap-3">
+                      <article className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="mb-2.5 flex items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2">
                             <Avatar
                               src={post.avatar_template ? buildAvatarUrl(post.avatar_template, 64) : undefined}
