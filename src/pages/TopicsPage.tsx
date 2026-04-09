@@ -11,9 +11,9 @@ import {
   TextField,
 } from "@mui/material";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { TopicItem, TopicUser } from "../types/topic";
-import { fetchLatestTopics } from "../api/linuxdo";
+import { fetchLatestTopics, fetchTopicDetail } from "../api/linuxdo";
 import { SESSION_EVENT } from "../utils/session";
+import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
 import {
   buildAvatarUrl,
   formatAbsoluteTime,
@@ -25,6 +25,10 @@ import {
   getTopicUrl,
 } from "../utils/topics";
 
+function getPostLikeCount(post?: TopicPost) {
+  return post?.actions_summary?.find((item) => item.id === 2)?.count ?? 0;
+}
+
 export function TopicsPage() {
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [users, setUsers] = useState<Record<number, TopicUser>>({});
@@ -32,6 +36,9 @@ export function TopicsPage() {
   const [keyword, setKeyword] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [detail, setDetail] = useState<TopicDetailResponse | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -45,12 +52,13 @@ export function TopicsPage() {
 
         setTopics(nextTopics);
         setUsers(nextUsers);
-        setSelectedId(nextTopics[0]?.id ?? null);
+        setSelectedId((currentId) => currentId ?? nextTopics[0]?.id ?? null);
       } catch (err) {
         console.error(err);
         setTopics([]);
         setUsers({});
         setSelectedId(null);
+        setDetail(null);
         if (err instanceof Error && err.message === "AUTH_REQUIRED") {
           setError("请先登录后再加载文章列表");
         } else {
@@ -87,8 +95,50 @@ export function TopicsPage() {
   const selectedTopic =
     filteredTopics.find((topic) => topic.id === selectedId) ?? filteredTopics[0] ?? null;
 
+  useEffect(() => {
+    if (!selectedTopic?.id) {
+      setDetail(null);
+      setDetailError("");
+      setDetailLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadDetail = async () => {
+      setDetailLoading(true);
+      setDetailError("");
+
+      try {
+        const data = await fetchTopicDetail(selectedTopic.id);
+        if (!cancelled) {
+          setDetail(data);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setDetail(null);
+          setDetailError("文章详情加载失败");
+        }
+      } finally {
+        if (!cancelled) {
+          setDetailLoading(false);
+        }
+      }
+    };
+
+    void loadDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTopic?.id]);
+
   const selectedAuthor = selectedTopic ? getTopicAuthor(selectedTopic, users) : null;
   const selectedTopicUrl = selectedTopic ? getTopicUrl(selectedTopic) : null;
+  const firstPost = detail?.post_stream?.posts?.[0] ?? null;
+  const detailAuthor = detail?.details?.created_by ?? selectedAuthor;
+  const detailLikeCount = detail?.like_count ?? getPostLikeCount(firstPost ?? undefined);
 
   return (
     <div className="grid h-[calc(100vh-3rem)] grid-cols-[460px_minmax(0,1fr)] gap-6">
@@ -206,15 +256,15 @@ export function TopicsPage() {
       <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
         <CardContent className="flex h-full flex-col p-8">
           {selectedTopic ? (
-            <div className="flex h-full flex-col">
+            <div className="flex h-full min-h-0 flex-col">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-3">
                   <div className="text-sm font-medium text-slate-500">
-                    {selectedAuthor?.name || selectedAuthor?.username || "linux.do"}
+                    {detailAuthor?.name || detailAuthor?.username || "linux.do"}
                   </div>
                   <h2 className="text-3xl font-semibold text-slate-900">{getTopicTitle(selectedTopic)}</h2>
                 </div>
-                <Chip label={`${selectedTopic.posts_count ?? 0} 回复`} color="primary" />
+                <Chip label={`${detail?.posts_count ?? selectedTopic.posts_count ?? 0} 回复`} color="primary" />
               </div>
 
               <Divider className="my-6" />
@@ -222,30 +272,45 @@ export function TopicsPage() {
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-3xl bg-slate-50 p-4">
                   <div className="text-sm text-slate-500">浏览</div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{selectedTopic.views ?? 0}</div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-900">
+                    {detail?.views ?? selectedTopic.views ?? 0}
+                  </div>
                 </div>
                 <div className="rounded-3xl bg-slate-50 p-4">
                   <div className="text-sm text-slate-500">点赞</div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{selectedTopic.like_count ?? 0}</div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-900">{detailLikeCount}</div>
                 </div>
                 <div className="rounded-3xl bg-slate-50 p-4">
                   <div className="text-sm text-slate-500">创建时间</div>
                   <div className="mt-2 text-base font-semibold text-slate-900">
-                    {formatAbsoluteTime(selectedTopic.created_at)}
+                    {formatAbsoluteTime(detail?.created_at || selectedTopic.created_at)}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 space-y-4 text-[15px] leading-7 text-slate-600">
-                <p>{selectedTopic.excerpt || "该接口返回的 latest 列表里没有更完整正文时，这里先展示列表摘要。"}</p>
-                <p>
-                  如果你下一步要继续做详情页，可以再接 <code>/t/:topicId.json</code> 把正文和回复流接进来。
-                </p>
+              <div className="mt-6 min-h-0 flex-1 overflow-auto pr-2">
+                {detailLoading ? (
+                  <div className="flex h-full items-center justify-center">
+                    <CircularProgress size={28} />
+                  </div>
+                ) : detailError ? (
+                  <Alert severity="error">{detailError}</Alert>
+                ) : firstPost?.cooked ? (
+                  <article
+                    className="max-w-none text-[15px] leading-7 text-slate-700 [&_a]:text-sky-700 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-slate-200 [&_blockquote]:pl-4 [&_img]:h-auto [&_img]:max-w-full [&_pre]:overflow-auto [&_pre]:rounded-2xl [&_pre]:bg-slate-950 [&_pre]:p-4 [&_pre]:text-slate-100"
+                    dangerouslySetInnerHTML={{ __html: firstPost.cooked }}
+                  />
+                ) : (
+                  <div className="space-y-4 text-[15px] leading-7 text-slate-600">
+                    <p>{selectedTopic.excerpt || "该文章暂时没有可展示的正文内容。"}</p>
+                    <p>详情接口已接通，但当前返回里没有拿到首帖正文。</p>
+                  </div>
+                )}
               </div>
 
-              {(selectedTopic.tags ?? []).length > 0 ? (
+              {(detail?.tags ?? selectedTopic.tags ?? []).length > 0 ? (
                 <div className="mt-6 flex flex-wrap gap-2">
-                  {(selectedTopic.tags ?? []).map((tag) => (
+                  {(detail?.tags ?? selectedTopic.tags ?? []).map((tag) => (
                     <span
                       key={getTopicTagKey(tag)}
                       className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600"
@@ -256,29 +321,36 @@ export function TopicsPage() {
                 </div>
               ) : null}
 
-              <div className="mt-auto flex gap-3 pt-8">
-                <Button
-                  variant="contained"
-                  className="h-11 rounded-2xl"
-                  onClick={() => {
-                    if (selectedTopicUrl) {
-                      void openUrl(selectedTopicUrl);
-                    }
-                  }}
-                >
-                  打开原文
-                </Button>
-                <Button
-                  variant="outlined"
-                  className="h-11 rounded-2xl"
-                  onClick={() => {
-                    if (selectedTopic?.id) {
-                      window.location.hash = `#/topics?topic=${selectedTopic.id}`;
-                    }
-                  }}
-                >
-                  保持选中
-                </Button>
+              <div className="mt-6 flex items-center justify-between gap-3 border-t border-slate-100 pt-6">
+                <div className="text-sm text-slate-500">
+                  {firstPost?.updated_at
+                    ? `最近更新于 ${formatAbsoluteTime(firstPost.updated_at)}`
+                    : `创建于 ${formatAbsoluteTime(detail?.created_at || selectedTopic.created_at)}`}
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="contained"
+                    className="h-11 rounded-2xl"
+                    onClick={() => {
+                      if (selectedTopicUrl) {
+                        void openUrl(selectedTopicUrl);
+                      }
+                    }}
+                  >
+                    打开原文
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    className="h-11 rounded-2xl"
+                    onClick={() => {
+                      if (selectedTopic?.id) {
+                        window.location.hash = `#/topics?topic=${selectedTopic.id}`;
+                      }
+                    }}
+                  >
+                    保持选中
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (

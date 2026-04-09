@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { fetch } from "@tauri-apps/plugin-http";
-import type { LatestTopicsResponse } from "../types/topic";
+import type { LatestTopicsResponse, TopicDetailResponse } from "../types/topic";
 import { BASE_URL } from "../utils/topics";
 
 type CurrentSessionResponse = {
@@ -106,4 +106,17 @@ export async function fetchLatestTopics() {
   }
 
   return response.json() as Promise<LatestTopicsResponse>;
+}
+
+export async function fetchTopicDetail(topicId: number) {
+  const response = await fetch(`${BASE_URL}/t/${topicId}/1.json`, {
+    method: "GET",
+    headers: await createAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  return response.json() as Promise<TopicDetailResponse>;
 }

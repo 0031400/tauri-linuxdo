@@ -30,7 +30,7 @@ async fn open_login_webview(
 
     WebviewWindowBuilder::new(&app, LOGIN_WINDOW_LABEL, WebviewUrl::External(login_url))
         .title("Linux.do 登录")
-        .inner_size(460.0, 820.0)
+        .inner_size(980.0, 720.0)
         .resizable(true)
         .focused(true)
         .on_page_load(move |window, payload| {
