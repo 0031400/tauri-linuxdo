@@ -1,4 +1,5 @@
 import { Alert, Avatar, Button, Card, CardContent, CircularProgress, Divider, TextField } from "@mui/material";
+import type { UIEvent } from "react";
 import type { TopicItem, TopicUser } from "../../types/topic";
 import {
   buildAvatarUrl,
@@ -19,6 +20,9 @@ type TopicListPanelProps = {
   onKeywordChange: (value: string) => void;
   onRefresh: () => void;
   onSelectTopic: (topicId: number) => void;
+  loadingMore: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
 };
 
 export function TopicListPanel({
@@ -31,7 +35,19 @@ export function TopicListPanel({
   onKeywordChange,
   onRefresh,
   onSelectTopic,
+  loadingMore,
+  hasMore,
+  onLoadMore,
 }: TopicListPanelProps) {
+  const handleListScroll = (event: UIEvent<HTMLDivElement>) => {
+    if (loadingMore || !hasMore) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+    if (scrollHeight - (scrollTop + clientHeight) < 120) {
+      onLoadMore();
+    }
+  };
+
   return (
     <Card className="h-full overflow-hidden rounded-[28px] border border-slate-200 shadow-lg shadow-slate-200/70">
       <CardContent className="flex h-full flex-col gap-5 p-6">
@@ -64,7 +80,7 @@ export function TopicListPanel({
         ) : error ? (
           <Alert severity="error">{error}</Alert>
         ) : (
-          <div className="min-h-0 flex-1 space-y-3 overflow-auto pr-1">
+          <div className="min-h-0 flex-1 space-y-3 overflow-auto pr-1" onScroll={handleListScroll}>
             {filteredTopics.map((topic) => {
               const active = selectedTopic?.id === topic.id;
               const author = getTopicAuthor(topic, users);
@@ -134,6 +150,14 @@ export function TopicListPanel({
                 </button>
               );
             })}
+            {loadingMore ? (
+              <div className="flex justify-center py-2">
+                <CircularProgress size={22} />
+              </div>
+            ) : null}
+            {!hasMore && filteredTopics.length > 0 ? (
+              <div className="py-2 text-center text-xs text-slate-400">No more topics</div>
+            ) : null}
           </div>
         )}
       </CardContent>

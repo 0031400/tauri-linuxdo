@@ -36,6 +36,7 @@ export type LatestTopicsResponse = {
   users?: TopicUser[];
   topic_list?: {
     topics?: TopicItem[];
+    more_topics_url?: string;
   };
 };
 

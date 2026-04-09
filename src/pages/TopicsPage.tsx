@@ -13,6 +13,13 @@ function getPostLikeCount(post?: TopicPost) {
   return post?.actions_summary?.find((item) => item.id === 2)?.count ?? 0;
 }
 
+function mergeTopics(current: TopicItem[], incoming: TopicItem[]) {
+  const topicMap = new Map<number, TopicItem>();
+  for (const topic of current) topicMap.set(topic.id, topic);
+  for (const topic of incoming) topicMap.set(topic.id, topic);
+  return Array.from(topicMap.values());
+}
+
 export function TopicsPage() {
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [users, setUsers] = useState<Record<number, TopicUser>>({});
@@ -23,40 +30,45 @@ export function TopicsPage() {
   const [detail, setDetail] = useState<TopicDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxSlides, setLightboxSlides] = useState<Array<{ src: string }>>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
+  const refreshTopics = async () => {
+    setLoading(true);
+    setError("");
 
-      try {
-        const data = await fetchLatestTopics();
-        const nextTopics = data.topic_list?.topics ?? [];
-        const nextUsers = Object.fromEntries((data.users ?? []).map((user) => [user.id, user]));
+    try {
+      const data = await fetchLatestTopics(0);
+      const nextTopics = data.topic_list?.topics ?? [];
+      const nextUsers = Object.fromEntries((data.users ?? []).map((user) => [user.id, user] as const));
 
-        setTopics(nextTopics);
-        setUsers(nextUsers);
-        setSelectedId((currentId) => currentId ?? nextTopics[0]?.id ?? null);
-      } catch (err) {
-        console.error(err);
-        setTopics([]);
-        setUsers({});
-        setSelectedId(null);
-        setDetail(null);
-        if (err instanceof Error && err.message === "AUTH_REQUIRED") {
-          setError("Please log in before loading topics.");
-        } else {
-          setError("Failed to load topic list.");
-        }
-      } finally {
-        setLoading(false);
+      setTopics(nextTopics);
+      setUsers(nextUsers);
+      setPage(0);
+      setHasMore(Boolean(data.topic_list?.more_topics_url));
+      setSelectedId((currentId) => currentId ?? nextTopics[0]?.id ?? null);
+    } catch (err) {
+      console.error(err);
+      setTopics([]);
+      setUsers({});
+      setSelectedId(null);
+      setDetail(null);
+      if (err instanceof Error && err.message === "AUTH_REQUIRED") {
+        setError("Please log in before loading topics.");
+      } else {
+        setError("Failed to load topic list.");
       }
-    };
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    void load();
+  useEffect(() => {
+    void refreshTopics();
   }, []);
 
   const filteredTopics = useMemo(() => {
@@ -72,6 +84,27 @@ export function TopicsPage() {
 
   const selectedTopic =
     filteredTopics.find((topic) => topic.id === selectedId) ?? filteredTopics[0] ?? null;
+
+  const loadMoreTopics = async () => {
+    if (loading || loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const data = await fetchLatestTopics(nextPage);
+      const incomingTopics = data.topic_list?.topics ?? [];
+      const incomingUsers = Object.fromEntries((data.users ?? []).map((user) => [user.id, user] as const));
+
+      setTopics((current) => mergeTopics(current, incomingTopics));
+      setUsers((current) => ({ ...current, ...incomingUsers }));
+      setPage(nextPage);
+      setHasMore(Boolean(data.topic_list?.more_topics_url));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     if (!selectedTopic?.id) {
@@ -143,8 +176,15 @@ export function TopicsPage() {
         error={error}
         keyword={keyword}
         onKeywordChange={setKeyword}
-        onRefresh={() => window.location.reload()}
+        onRefresh={() => {
+          void refreshTopics();
+        }}
         onSelectTopic={setSelectedId}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
+        onLoadMore={() => {
+          void loadMoreTopics();
+        }}
       />
 
       <TopicDetailPanel

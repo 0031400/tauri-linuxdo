@@ -81,8 +81,13 @@ export async function logoutLinuxDo() {
   await clearLinuxDoCookieHeader();
 }
 
-export async function fetchLatestTopics() {
-  const response = await fetch(`${BASE_URL}/latest.json`, {
+export async function fetchLatestTopics(page = 0) {
+  const url = new URL(`${BASE_URL}/latest.json`);
+  if (page > 0) {
+    url.searchParams.set("page", String(page));
+  }
+
+  const response = await fetch(url.toString(), {
     method: "GET",
     headers: createAuthHeaders(),
   });
