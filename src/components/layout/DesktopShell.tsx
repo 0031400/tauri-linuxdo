@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Button, Card, CardContent, Chip } from "@mui/material";
+import { Button, Card, CardContent, Chip, CircularProgress } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   hydrateLinuxDoCookieHeader,
@@ -17,8 +17,9 @@ type LoginStatusPayload = {
 
 export function DesktopShell() {
   const location = useLocation();
+  const [initializing, setInitializing] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true);
+  const [checkingSession, setCheckingSession] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [openingLogin, setOpeningLogin] = useState(false);
 
@@ -44,9 +45,14 @@ export function DesktopShell() {
     let unlistenLoginStatus: (() => void) | undefined;
 
     void (async () => {
-      await hydrateLinuxDoCookieHeader();
-      await refreshSession();
+      try {
+        await hydrateLinuxDoCookieHeader();
+        await refreshSession();
+      } finally {
+        setInitializing(false);
+      }
     })();
+
     window.addEventListener(SESSION_EVENT, handleSessionChange);
     void listen<LoginStatusPayload>("linuxdo-login-status", async (event) => {
       await setLinuxDoCookieHeader(event.payload.cookie_header);
@@ -91,6 +97,19 @@ export function DesktopShell() {
     { to: "/notifications", label: "通知" },
     { to: "/settings", label: "设置" },
   ];
+
+  if (initializing) {
+    return (
+      <main className="min-h-screen bg-slate-100 px-6 py-6 text-slate-900">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1600px] items-center justify-center">
+          <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm">
+            <CircularProgress size={22} />
+            <span className="text-sm text-slate-600">加载中...</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-6 text-slate-900">

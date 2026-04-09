@@ -23,14 +23,17 @@ function getCookieStore() {
 export async function hydrateLinuxDoCookieHeader() {
   const store = await getCookieStore();
   const savedCookieHeader = await store.get<string>(COOKIE_STORE_KEY);
-  linuxDoCookieHeader = typeof savedCookieHeader === "string" ? savedCookieHeader.trim() : "";
+  linuxDoCookieHeader =
+    typeof savedCookieHeader === "string" ? savedCookieHeader.trim() : "";
 }
 
 export function getLinuxDoCookieHeader() {
   return linuxDoCookieHeader;
 }
 
-export async function setLinuxDoCookieHeader(cookieHeader: string | null | undefined) {
+export async function setLinuxDoCookieHeader(
+  cookieHeader: string | null | undefined,
+) {
   linuxDoCookieHeader = (cookieHeader ?? "").trim();
   const store = await getCookieStore();
   if (linuxDoCookieHeader) {
