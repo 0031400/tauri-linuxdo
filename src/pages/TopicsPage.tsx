@@ -294,6 +294,9 @@ export function TopicsPage() {
             setLightboxOpen(true);
           },
           onOpenLink: (url) => {
+            if (url.startsWith("#")) {
+              return;
+            }
             const topicId = extractLinuxDoTopicId(url);
             if (topicId) {
               setSelectedId(topicId);

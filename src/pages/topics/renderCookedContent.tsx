@@ -140,6 +140,11 @@ export function renderCookedContent(
 
     if (tag === "a") {
       const href = normalizeLinuxDoUrl((element as HTMLAnchorElement).getAttribute("href") ?? "");
+      const isHeadingAnchor =
+        element.classList.contains("anchor") && (href.startsWith("#") || element.hasAttribute("name"));
+      if (isHeadingAnchor) {
+        return null;
+      }
       const children = renderChildren(element);
       return (
         <a
