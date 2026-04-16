@@ -16,6 +16,8 @@ const COOKIE_STORE_KEY = "linuxdo-cookie-header";
 
 let linuxDoCookieHeader = "";
 let cookieStorePromise: ReturnType<typeof load> | null = null;
+let allTopicCategoriesCache: TopicCategory[] | null = null;
+let allTopicCategoriesPromise: Promise<TopicCategory[]> | null = null;
 
 function getCookieStore() {
   if (!cookieStorePromise) {
@@ -116,7 +118,16 @@ export async function fetchLatestTopicsByCategory(categorySlug: string, page = 0
     return fetchLatestTopics(page);
   }
 
-  const url = new URL(`${BASE_URL}/c/${encodeURIComponent(safeSlug)}/l/latest.json`);
+  const pathParts = safeSlug
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => encodeURIComponent(part));
+  if (pathParts.length === 0) {
+    return fetchLatestTopics(page);
+  }
+
+  const url = new URL(`${BASE_URL}/c/${pathParts.join("/")}/l/latest.json`);
   if (page > 0) {
     url.searchParams.set("page", String(page));
   }
@@ -154,6 +165,90 @@ export async function fetchTopicCategories() {
     };
   };
 
+  return normalizeTopicCategories(data);
+}
+
+export async function fetchTopicCategoriesByParent(parentCategoryId: number) {
+  const url = new URL(`${BASE_URL}/categories.json`);
+  url.searchParams.set("parent_category_id", String(parentCategoryId));
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: createAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    category_list?: {
+      categories?: Array<{
+        id?: number;
+        name?: string;
+        slug?: string;
+        parent_category_id?: number | null;
+      }>;
+    };
+  };
+
+  return normalizeTopicCategories(data);
+}
+
+export function clearTopicCategoriesCache() {
+  allTopicCategoriesCache = null;
+  allTopicCategoriesPromise = null;
+}
+
+export async function fetchAllTopicCategories() {
+  if (allTopicCategoriesCache) {
+    return allTopicCategoriesCache;
+  }
+  if (allTopicCategoriesPromise) {
+    return allTopicCategoriesPromise;
+  }
+
+  allTopicCategoriesPromise = (async () => {
+    const topCategories = await fetchTopicCategories();
+    const parentCandidates = topCategories.filter((item) => !item.parent_category_id);
+    const childCategoryGroups = await Promise.all(
+      parentCandidates.map(async (parent) => {
+        try {
+          return await fetchTopicCategoriesByParent(parent.id);
+        } catch {
+          return [] as TopicCategory[];
+        }
+      }),
+    );
+
+    const merged = new Map<number, TopicCategory>();
+    for (const item of topCategories) merged.set(item.id, item);
+    for (const group of childCategoryGroups) {
+      for (const item of group) merged.set(item.id, item);
+    }
+
+    const all = Array.from(merged.values());
+    allTopicCategoriesCache = all;
+    return all;
+  })();
+
+  try {
+    return await allTopicCategoriesPromise;
+  } finally {
+    allTopicCategoriesPromise = null;
+  }
+}
+
+function normalizeTopicCategories(data: {
+  category_list?: {
+    categories?: Array<{
+      id?: number;
+      name?: string;
+      slug?: string;
+      parent_category_id?: number | null;
+    }>;
+  };
+}) {
   return (data.category_list?.categories ?? [])
     .filter(
       (

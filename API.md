@@ -295,7 +295,28 @@ Host: linux.do
 - `GET /c/{categorySlug}.json`
 - 以及通过变量 path 调用的列表接口，例如 `latest/new/unread/tag` 等
 
-### 5.3 创建与修改主题
+### 5.3 分类列表（Tauri 使用）
+
+来源:
+- `src/api/linuxdo.ts`
+
+已确认接口:
+- `GET /categories.json`
+- `GET /categories.json?parent_category_id={parentCategoryId}`
+
+当前 Tauri 项目已使用字段（仅列出实际读取）:
+- `category_list.categories[].id`
+- `category_list.categories[].name`
+- `category_list.categories[].slug`
+- `category_list.categories[].parent_category_id`
+
+说明:
+- 应用启动后会先请求 `GET /categories.json`，再按父分类批量请求 `GET /categories.json?parent_category_id={id}`，合并为全量分类缓存。
+- 左侧“等级筛选”基于全量缓存中名称/slug 包含 `LvN` 的子分类动态生成（如 `Lv1`、`Lv2`）。
+- 话题列表按分类请求支持多段路径：`/c/{parentSlug}/{childSlug}/l/latest.json`（例如 `/c/wiki/wiki-lv2/l/latest.json`）。
+- 返回中其余字段（例如 `topics`、`description`、`subcategory_ids`）当前未在项目代码中使用。
+
+### 5.4 创建与修改主题
 
 - `POST /posts`
 - `PUT /t/{topicId}.json`

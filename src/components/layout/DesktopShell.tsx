@@ -4,7 +4,8 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { Button, Card, CardContent, CircularProgress } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
-  fetchTopicCategories,
+  clearTopicCategoriesCache,
+  fetchAllTopicCategories,
   hydrateLinuxDoCookieHeader,
   hasLinuxDoSession,
   logoutLinuxDo,
@@ -18,6 +19,20 @@ import { notifySessionChanged, SESSION_EVENT } from "../../utils/session";
 type LoginStatusPayload = {
   cookie_header: string;
 };
+
+type LevelOption = {
+  key: string;
+  label: string;
+  categoryIds: number[];
+};
+
+function getLevelNumber(category: TopicCategory) {
+  const source = `${category.name} ${category.slug}`.toLowerCase();
+  const match = source.match(/lv\s*([0-9]+)/i);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
 
 export function DesktopShell() {
   const location = useLocation();
@@ -35,17 +50,49 @@ export function DesktopShell() {
   const [openingLogin, setOpeningLogin] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(true);
   const [categories, setCategories] = useState<TopicCategory[]>([]);
-  const [categoryLevel, setCategoryLevel] = useState<"all" | "top" | "sub">("all");
+  const [levelOptions, setLevelOptions] = useState<LevelOption[]>([]);
+  const [categoryLevel, setCategoryLevel] = useState("all");
+
+  const levelCategoryIdSet = useMemo(() => {
+    const result = new Set<number>();
+    for (const option of levelOptions) {
+      for (const id of option.categoryIds) {
+        result.add(id);
+      }
+    }
+    return result;
+  }, [levelOptions]);
 
   const visibleCategories = useMemo(() => {
-    if (categoryLevel === "top") {
-      return categories.filter((item) => !item.parent_category_id);
+    if (categoryLevel === "all") {
+      return categories.filter((item) => !levelCategoryIdSet.has(item.id));
     }
-    if (categoryLevel === "sub") {
-      return categories.filter((item) => Boolean(item.parent_category_id));
+    const matched = levelOptions.find((item) => item.key === categoryLevel);
+    if (!matched) return categories;
+    const idSet = new Set(matched.categoryIds);
+    return categories.filter((item) => idSet.has(item.id));
+  }, [categories, categoryLevel, levelCategoryIdSet, levelOptions]);
+
+  const categoryPathById = useMemo(() => {
+    const categoryById = new Map<number, TopicCategory>();
+    for (const category of categories) {
+      categoryById.set(category.id, category);
     }
-    return categories;
-  }, [categories, categoryLevel]);
+
+    const result = new Map<number, string>();
+    for (const category of categories) {
+      const parentId = category.parent_category_id;
+      if (parentId) {
+        const parent = categoryById.get(parentId);
+        if (parent?.slug) {
+          result.set(category.id, `${parent.slug}/${category.slug}`);
+          continue;
+        }
+      }
+      result.set(category.id, category.slug);
+    }
+    return result;
+  }, [categories]);
 
   useEffect(() => {
     if (isMinimal) return;
@@ -172,10 +219,29 @@ export function DesktopShell() {
 
     const loadCategories = async () => {
       try {
-        const items = await fetchTopicCategories();
+        const items = await fetchAllTopicCategories();
         setCategories(items);
+
+        const grouped = new Map<number, TopicCategory[]>();
+        for (const item of items) {
+          if (!item.parent_category_id) continue;
+          const level = getLevelNumber(item);
+          if (!level) continue;
+          const list = grouped.get(level) ?? [];
+          list.push(item);
+          grouped.set(level, list);
+        }
+        const options = Array.from(grouped.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([level, list]) => ({
+            key: `lv${level}`,
+            label: `Lv${level}`,
+            categoryIds: list.map((item) => item.id),
+          }));
+        setLevelOptions(options);
       } catch {
         setCategories([]);
+        setLevelOptions([]);
       }
     };
 
@@ -185,7 +251,9 @@ export function DesktopShell() {
         if (ok) {
           await loadCategories();
         } else {
+          clearTopicCategoriesCache();
           setCategories([]);
+          setLevelOptions([]);
         }
       })();
     };
@@ -199,7 +267,9 @@ export function DesktopShell() {
         if (ok) {
           await loadCategories();
         } else {
+          clearTopicCategoriesCache();
           setCategories([]);
+          setLevelOptions([]);
         }
       } finally {
         setInitializing(false);
@@ -209,12 +279,15 @@ export function DesktopShell() {
     window.addEventListener(SESSION_EVENT, handleSessionChange);
     void listen<LoginStatusPayload>("linuxdo-login-status", async (event) => {
       await setLinuxDoCookieHeader(event.payload.cookie_header);
+      clearTopicCategoriesCache();
       setOpeningLogin(false);
       const ok = await refreshSession();
       if (ok) {
         await loadCategories();
       } else {
+        clearTopicCategoriesCache();
         setCategories([]);
+        setLevelOptions([]);
       }
       notifySessionChanged();
     }).then((unlisten) => {
@@ -241,7 +314,9 @@ export function DesktopShell() {
     setLoggingOut(true);
     try {
       await logoutLinuxDo();
+      clearTopicCategoriesCache();
       setCategories([]);
+      setLevelOptions([]);
       notifySessionChanged();
     } catch (error) {
       console.error(error);
@@ -256,7 +331,7 @@ export function DesktopShell() {
         <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1500px] items-center justify-center">
           <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm">
             <CircularProgress size={22} />
-            <span className="text-sm text-slate-600">加载中...</span>
+            <span className="text-sm text-slate-600">Loading...</span>
           </div>
         </div>
       </main>
@@ -283,7 +358,7 @@ export function DesktopShell() {
 
               <div className="min-h-0 flex-1 overflow-y-auto rounded-xl bg-slate-50 p-1">
                 <div className="mb-1.5 flex items-center gap-1 px-1 py-1">
-                  <span className="text-xs text-slate-500">筛选等级</span>
+                  <span className="text-xs text-slate-500">Level</span>
                   <button
                     type="button"
                     className={[
@@ -294,32 +369,23 @@ export function DesktopShell() {
                     ].join(" ")}
                     onClick={() => setCategoryLevel("all")}
                   >
-                    全部
+                    All
                   </button>
-                  <button
-                    type="button"
-                    className={[
-                      "rounded-md px-1.5 py-0.5 text-xs transition",
-                      categoryLevel === "top"
-                        ? "bg-slate-900 text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200",
-                    ].join(" ")}
-                    onClick={() => setCategoryLevel("top")}
-                  >
-                    一级
-                  </button>
-                  <button
-                    type="button"
-                    className={[
-                      "rounded-md px-1.5 py-0.5 text-xs transition",
-                      categoryLevel === "sub"
-                        ? "bg-slate-900 text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200",
-                    ].join(" ")}
-                    onClick={() => setCategoryLevel("sub")}
-                  >
-                    二级
-                  </button>
+                  {levelOptions.map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      className={[
+                        "rounded-md px-1.5 py-0.5 text-xs transition",
+                        categoryLevel === option.key
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                      ].join(" ")}
+                      onClick={() => setCategoryLevel(option.key)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
 
                 <button
@@ -327,8 +393,8 @@ export function DesktopShell() {
                   className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
                   onClick={() => setCategoryOpen((current) => !current)}
                 >
-                  <span>类别</span>
-                  <span className="text-xs text-slate-500">{categoryOpen ? "收起" : "展开"}</span>
+                  <span>Categories</span>
+                  <span className="text-xs text-slate-500">{categoryOpen ? "Collapse" : "Expand"}</span>
                 </button>
 
                 {categoryOpen ? (
@@ -342,14 +408,15 @@ export function DesktopShell() {
                           : "text-slate-600 hover:bg-slate-100",
                       ].join(" ")}
                     >
-                      全部分类
+                      All Categories
                     </NavLink>
                     {visibleCategories.map((category) => {
-                      const active = location.pathname === "/topics" && currentCategory === category.slug;
+                      const categoryPath = categoryPathById.get(category.id) ?? category.slug;
+                      const active = location.pathname === "/topics" && currentCategory === categoryPath;
                       return (
                         <NavLink
                           key={category.id}
-                          to={`/topics?category=${encodeURIComponent(category.slug)}`}
+                          to={`/topics?category=${encodeURIComponent(categoryPath)}`}
                           className={[
                             "block rounded-lg px-2 py-1.5 text-sm transition",
                             active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
@@ -374,7 +441,7 @@ export function DesktopShell() {
                     }}
                     disabled={checkingSession || loggingOut}
                   >
-                    {loggingOut ? "退出中..." : "退出登录"}
+                    {loggingOut ? "Logging out..." : "Logout"}
                   </Button>
                 ) : (
                   <Button
@@ -386,7 +453,7 @@ export function DesktopShell() {
                     }}
                     disabled={checkingSession || openingLogin}
                   >
-                    {openingLogin ? "登录中..." : "登录"}
+                    {openingLogin ? "Logging in..." : "Login"}
                   </Button>
                 )}
               </div>
