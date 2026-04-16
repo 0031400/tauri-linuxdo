@@ -254,9 +254,12 @@ export async function searchTopics(query: string, page = 1) {
     } satisfies SearchTopicsResponse;
   }
 
-  const url = new URL(`${BASE_URL}/search/query.json`);
-  url.searchParams.set("term", term);
-  url.searchParams.set("page", String(page));
+  const url = new URL(`${BASE_URL}/search.json`);
+  url.searchParams.set("q", term);
+  url.searchParams.set("type_filter", "topic");
+  if (page > 1) {
+    url.searchParams.set("page", String(page));
+  }
 
   const response = await fetch(url.toString(), {
     method: "GET",

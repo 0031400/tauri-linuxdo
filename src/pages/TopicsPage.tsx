@@ -82,7 +82,10 @@ export function TopicsPage() {
   const [searchTopicsList, setSearchTopicsList] = useState<TopicItem[]>([]);
   const [searchUsers, setSearchUsers] = useState<Record<number, TopicUser>>({});
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchLoadingMore, setSearchLoadingMore] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchHasMore, setSearchHasMore] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -202,6 +205,8 @@ export function TopicsPage() {
           const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
           setSearchTopicsList(data.topics);
           setSearchUsers(nextUsers);
+          setSearchPage(1);
+          setSearchHasMore(data.hasMore);
           setSelectedId((currentId) => {
             if (currentId && data.topics.some((topic) => topic.id === currentId)) {
               return currentId;
@@ -228,6 +233,29 @@ export function TopicsPage() {
       clearTimeout(timer);
     };
   }, [keyword]);
+
+  const loadMoreSearchTopics = async () => {
+    if (searchLoading || searchLoadingMore || !searchHasMore) return;
+    const term = keyword.trim();
+    if (!term) return;
+
+    setSearchLoadingMore(true);
+    setSearchError("");
+    try {
+      const nextPage = searchPage + 1;
+      const data = await searchTopics(term, nextPage);
+      const incomingUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
+      setSearchTopicsList((current) => mergeTopics(current, data.topics));
+      setSearchUsers((current) => ({ ...current, ...incomingUsers }));
+      setSearchPage(nextPage);
+      setSearchHasMore(data.hasMore);
+    } catch (err) {
+      console.error(err);
+      setSearchError("Failed to load more search results.");
+    } finally {
+      setSearchLoadingMore(false);
+    }
+  };
 
   const usingSearch = keyword.trim().length > 0;
   const visibleTopics = usingSearch ? searchTopicsList : topics;
@@ -441,6 +469,8 @@ export function TopicsPage() {
                       const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
                       setSearchTopicsList(data.topics);
                       setSearchUsers(nextUsers);
+                      setSearchPage(1);
+                      setSearchHasMore(data.hasMore);
                       setSelectedId((currentId) => {
                         if (currentId && data.topics.some((topic) => topic.id === currentId)) {
                           return currentId;
@@ -462,9 +492,13 @@ export function TopicsPage() {
                 void refreshTopics();
               }}
               onSelectTopic={setSelectedId}
-              loadingMore={usingSearch ? false : loadingMore}
-              hasMore={usingSearch ? false : hasMore}
+              loadingMore={usingSearch ? searchLoadingMore : loadingMore}
+              hasMore={usingSearch ? searchHasMore : hasMore}
               onLoadMore={() => {
+                if (usingSearch) {
+                  void loadMoreSearchTopics();
+                  return;
+                }
                 void loadMoreTopics();
               }}
             />

@@ -366,9 +366,9 @@ Host: linux.do
 
 来源:
 - `thirdparty/fluxdo/lib/services/discourse/_search.dart`
+- `src/api/linuxdo.ts`
 
 已确认接口:
-- `GET /search/query.json`
 - `GET /search.json`
 - `GET /discourse-ai/embeddings/semantic-search`
 - `GET /u/recent-searches.json`
@@ -377,8 +377,17 @@ Host: linux.do
 - `GET /u/search/users`
 
 请求/响应格式:
-- 代码确认路径和 query 使用方式
-- 当前未补完整返回模型
+- FluxDO 内部可使用 `/search.json` 或 `/search/query.json`（取决于调用方实现）
+- 当前 Tauri 项目搜索已切换为：
+  - Method: `GET`
+  - Path: `/search.json`
+  - Query:
+    - `q=<查询>`
+    - `page=<页码>`（仅 `page > 1` 时传）
+    - `type_filter=topic`
+- 当前 Tauri 项目分页判断依赖响应：
+  - `grouped_search_result.more_full_page_results`
+  - `grouped_search_result.more_posts`
 
 ## 9. 草稿 / Draft
 
