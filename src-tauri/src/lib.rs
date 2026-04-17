@@ -1,104 +1,94 @@
 use serde::Serialize;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
-use tauri::{
-    webview::{PageLoadEvent, Url},
-    Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
-};
+use std::sync::{Mutex, OnceLock};
+use tauri::{webview::Url, Manager};
+use tauri::WebviewWindow;
+use tauri::webview::PageLoadEvent;
+#[cfg(not(mobile))]
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-const LOGIN_WINDOW_LABEL: &str = "linuxdo-login";
 const LOGIN_URL: &str = "https://linux.do/login";
 const BASE_URL: &str = "https://linux.do/";
+const MAIN_WINDOW_LABEL: &str = "main";
+#[cfg(not(mobile))]
 const TOPIC_WINDOW_LABEL_PREFIX: &str = "linuxdo-topic-";
+#[cfg(mobile)]
+const ERR_UNSUPPORTED_ON_MOBILE: &str = "UNSUPPORTED_ON_MOBILE";
+
+static PRE_LOGIN_URL: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+static PENDING_LOGIN_COOKIE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+fn pre_login_url_store() -> &'static Mutex<Option<String>> {
+    PRE_LOGIN_URL.get_or_init(|| Mutex::new(None))
+}
+
+fn pending_login_cookie_store() -> &'static Mutex<Option<String>> {
+    PENDING_LOGIN_COOKIE.get_or_init(|| Mutex::new(None))
+}
+
+fn save_pre_login_url(url: &Url) {
+    if let Ok(mut guard) = pre_login_url_store().lock() {
+        *guard = Some(url.to_string());
+    }
+}
+
+fn take_pre_login_url() -> Option<Url> {
+    let raw = pre_login_url_store()
+        .lock()
+        .ok()
+        .and_then(|mut guard| guard.take());
+    raw.and_then(|value| Url::parse(&value).ok())
+}
+
+fn clear_pending_login_cookie() {
+    if let Ok(mut guard) = pending_login_cookie_store().lock() {
+        *guard = None;
+    }
+}
+
+fn set_pending_login_cookie(cookie_header: String) {
+    if let Ok(mut guard) = pending_login_cookie_store().lock() {
+        *guard = Some(cookie_header);
+    }
+}
 
 #[derive(Clone, Serialize)]
-struct LoginStatusPayload {
-    cookie_header: String,
+struct PlatformCapabilities {
+    is_mobile: bool,
+    supports_multi_window: bool,
+    supports_window_resize: bool,
+}
+
+#[tauri::command]
+fn platform_capabilities() -> PlatformCapabilities {
+    let is_mobile = cfg!(mobile);
+    PlatformCapabilities {
+        is_mobile,
+        supports_multi_window: !is_mobile,
+        supports_window_resize: !is_mobile,
+    }
 }
 
 #[tauri::command]
 async fn open_login_webview(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     webview_window: WebviewWindow,
 ) -> Result<(), String> {
-    if let Some(existing) = app.get_webview_window(LOGIN_WINDOW_LABEL) {
-        let _ = existing.set_focus();
-        return Ok(());
-    }
-
-    let main_label = webview_window.label().to_string();
-    let close_event_main_label = main_label.clone();
     let login_url = Url::parse(LOGIN_URL).map_err(|error| error.to_string())?;
-    let app_handle = app.clone();
-    let closed_after_login_success = Arc::new(AtomicBool::new(false));
-    let close_event_flag = closed_after_login_success.clone();
-
-    let login_window = WebviewWindowBuilder::new(&app, LOGIN_WINDOW_LABEL, WebviewUrl::External(login_url))
-        .title("Linux.do 登录")
-        .inner_size(980.0, 720.0)
-        .resizable(true)
-        .focused(true)
-        .on_page_load(move |window, payload| {
-            if matches!(payload.event(), PageLoadEvent::Finished) {
-                let app_handle = app_handle.clone();
-                let main_label = main_label.clone();
-                let window = window.clone();
-                let closed_after_login_success = closed_after_login_success.clone();
-
-                tauri::async_runtime::spawn(async move {
-                    if let Ok(Some(cookie_header)) = get_linuxdo_cookie_header_from_webview(window.clone()).await
-                    {
-                        if app_handle.get_webview_window(&main_label).is_some() {
-                            let _ = app_handle.emit_to(
-                                main_label,
-                                "linuxdo-login-status",
-                                LoginStatusPayload { cookie_header },
-                            );
-                        }
-                        closed_after_login_success.store(true, Ordering::Relaxed);
-                        let _ = window.close();
-                    }
-                });
-            }
-        })
-        .build()
+    clear_pending_login_cookie();
+    if let Ok(current_url) = webview_window.url() {
+        save_pre_login_url(&current_url);
+    }
+    webview_window
+        .navigate(login_url)
         .map_err(|error| error.to_string())?;
-
-    let close_event_app_handle = app.clone();
-    login_window.on_window_event(move |event| {
-        let should_emit_empty = matches!(event, WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed)
-            && !close_event_flag.load(Ordering::Relaxed);
-        if should_emit_empty {
-            if close_event_app_handle
-                .get_webview_window(&close_event_main_label)
-                .is_some()
-            {
-                let _ = close_event_app_handle.emit_to(
-                    close_event_main_label.clone(),
-                    "linuxdo-login-status",
-                    LoginStatusPayload {
-                        cookie_header: String::new(),
-                    },
-                );
-            }
-        }
-    });
-
+    let _ = webview_window.set_focus();
     Ok(())
 }
 
 #[tauri::command]
+#[cfg(not(mobile))]
 async fn clear_linuxdo_browsing_data(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(login_window) = app.get_webview_window(LOGIN_WINDOW_LABEL) {
-        login_window
-            .clear_all_browsing_data()
-            .map_err(|error| error.to_string())?;
-        let _ = login_window.close();
-    }
-
-    if let Some(main_window) = app.get_webview_window("main") {
+    if let Some(main_window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         main_window
             .clear_all_browsing_data()
             .map_err(|error| error.to_string())?;
@@ -108,6 +98,21 @@ async fn clear_linuxdo_browsing_data(app: tauri::AppHandle) -> Result<(), String
 }
 
 #[tauri::command]
+#[cfg(mobile)]
+async fn clear_linuxdo_browsing_data(_app: tauri::AppHandle) -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+fn take_pending_login_cookie() -> Option<String> {
+    pending_login_cookie_store()
+        .lock()
+        .ok()
+        .and_then(|mut guard| guard.take())
+}
+
+#[tauri::command]
+#[cfg(not(mobile))]
 async fn open_topic_window(
     app: tauri::AppHandle,
     topic_id: u64,
@@ -129,14 +134,8 @@ if (window.location.hash !== "{target_hash}") {{
 "#
     );
 
-    let window_width = width
-        .unwrap_or(1180.0)
-        .round()
-        .clamp(420.0, 3000.0);
-    let window_height = height
-        .unwrap_or(820.0)
-        .round()
-        .clamp(540.0, 2200.0);
+    let window_width = width.unwrap_or(1180.0).round().clamp(420.0, 3000.0);
+    let window_height = height.unwrap_or(820.0).round().clamp(540.0, 2200.0);
 
     WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html".into()))
         .title(&format!("Topic #{topic_id}"))
@@ -148,6 +147,17 @@ if (window.location.hash !== "{target_hash}") {{
         .map_err(|error| error.to_string())?;
 
     Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn open_topic_window(
+    _app: tauri::AppHandle,
+    _topic_id: u64,
+    _width: Option<f64>,
+    _height: Option<f64>,
+) -> Result<(), String> {
+    Err(ERR_UNSUPPORTED_ON_MOBILE.to_string())
 }
 
 async fn get_linuxdo_cookie_header_from_webview(
@@ -173,17 +183,57 @@ async fn get_linuxdo_cookie_header_from_webview(
     }
 }
 
+fn is_linuxdo_non_login_url(url: &Url) -> bool {
+    if !matches!(url.scheme(), "http" | "https") {
+        return false;
+    }
+    if url.host_str() != Some("linux.do") {
+        return false;
+    }
+    let path = url.path().trim();
+    !(path == "/login" || path.starts_with("/login/"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .on_page_load(|window, payload| {
+            if !matches!(payload.event(), PageLoadEvent::Finished) {
+                return;
+            }
+            if window.label() != MAIN_WINDOW_LABEL {
+                return;
+            }
+            if !is_linuxdo_non_login_url(payload.url()) {
+                return;
+            }
+
+            let app_handle = window.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW_LABEL) {
+                    if let Ok(Some(cookie_header)) =
+                        get_linuxdo_cookie_header_from_webview(main_window.clone()).await
+                    {
+                        set_pending_login_cookie(cookie_header);
+                        let target_url = take_pre_login_url();
+                        if let Some(target_url) = target_url {
+                            let _ = main_window.navigate(target_url);
+                        }
+                    }
+                }
+            });
+        })
         .invoke_handler(tauri::generate_handler![
+            platform_capabilities,
             open_login_webview,
             clear_linuxdo_browsing_data,
+            take_pending_login_cookie,
             open_topic_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

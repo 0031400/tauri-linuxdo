@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { Button, Card, CardContent, CircularProgress } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
@@ -11,14 +10,12 @@ import {
   logoutLinuxDo,
   openLinuxDoLogin,
   setLinuxDoCookieHeader,
+  takePendingLinuxDoLoginCookie,
 } from "../../api/linuxdo";
 import type { TopicCategory } from "../../types/topic";
 import { readLayoutNumber, writeLayoutNumber } from "../../utils/layoutStore";
+import { getPlatformCapabilities } from "../../utils/platform";
 import { notifySessionChanged, SESSION_EVENT } from "../../utils/session";
-
-type LoginStatusPayload = {
-  cookie_header: string;
-};
 
 type LevelOption = {
   key: string;
@@ -39,6 +36,7 @@ export function DesktopShell() {
   const query = new URLSearchParams(location.search);
   const isMinimal = query.get("minimal") === "1";
   const currentCategory = query.get("category")?.trim() || "";
+  const { isMobile, supportsWindowResize } = getPlatformCapabilities();
   const layoutRootRef = useRef<HTMLDivElement | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [sidebarWidthReady, setSidebarWidthReady] = useState(false);
@@ -95,7 +93,7 @@ export function DesktopShell() {
   }, [categories]);
 
   useEffect(() => {
-    if (isMinimal) return;
+    if (isMinimal || !supportsWindowResize) return;
 
     const appWindow = getCurrentWindow();
     let unlistenResized: (() => void) | undefined;
@@ -160,28 +158,29 @@ export function DesktopShell() {
       }
       unlistenResized?.();
     };
-  }, [isMinimal]);
+  }, [isMinimal, supportsWindowResize]);
 
   useEffect(() => {
+    if (isMobile) return;
     void readLayoutNumber("layout.sidebarWidth", 240).then((value) => {
       setSidebarWidth(Math.max(180, Math.min(420, Math.round(value))));
       setSidebarWidthReady(true);
     });
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
-    if (!sidebarWidthReady || isMinimal) return;
+    if (isMobile || !sidebarWidthReady || isMinimal) return;
     const timer = window.setTimeout(() => {
       void writeLayoutNumber("layout.sidebarWidth", sidebarWidth);
     }, 1000);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [isMinimal, sidebarWidth, sidebarWidthReady]);
+  }, [isMinimal, isMobile, sidebarWidth, sidebarWidthReady]);
 
   useEffect(() => {
     const onMouseMove = (event: MouseEvent) => {
-      if (!draggingSidebarRef.current || isMinimal) return;
+      if (!draggingSidebarRef.current || isMinimal || isMobile) return;
       const rootRect = layoutRootRef.current?.getBoundingClientRect();
       if (!rootRect) return;
       const next = Math.max(180, Math.min(420, Math.round(event.clientX - rootRect.left)));
@@ -200,7 +199,7 @@ export function DesktopShell() {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [isMinimal]);
+  }, [isMinimal, isMobile]);
 
   useEffect(() => {
     const refreshSession = async () => {
@@ -258,11 +257,13 @@ export function DesktopShell() {
       })();
     };
 
-    let unlistenLoginStatus: (() => void) | undefined;
-
     void (async () => {
       try {
         await hydrateLinuxDoCookieHeader();
+        const pendingCookieHeader = await takePendingLinuxDoLoginCookie();
+        if (typeof pendingCookieHeader === "string" && pendingCookieHeader.trim()) {
+          await setLinuxDoCookieHeader(pendingCookieHeader);
+        }
         const ok = await refreshSession();
         if (ok) {
           await loadCategories();
@@ -272,31 +273,15 @@ export function DesktopShell() {
           setLevelOptions([]);
         }
       } finally {
+        setOpeningLogin(false);
         setInitializing(false);
       }
     })();
 
     window.addEventListener(SESSION_EVENT, handleSessionChange);
-    void listen<LoginStatusPayload>("linuxdo-login-status", async (event) => {
-      await setLinuxDoCookieHeader(event.payload.cookie_header);
-      clearTopicCategoriesCache();
-      setOpeningLogin(false);
-      const ok = await refreshSession();
-      if (ok) {
-        await loadCategories();
-      } else {
-        clearTopicCategoriesCache();
-        setCategories([]);
-        setLevelOptions([]);
-      }
-      notifySessionChanged();
-    }).then((unlisten) => {
-      unlistenLoginStatus = unlisten;
-    });
 
     return () => {
       window.removeEventListener(SESSION_EVENT, handleSessionChange);
-      unlistenLoginStatus?.();
     };
   }, []);
 
@@ -343,6 +328,110 @@ export function DesktopShell() {
       <main className="min-h-screen bg-slate-100 px-3 py-3 text-slate-900">
         <div className="mx-auto min-h-[calc(100vh-1.5rem)] max-w-[1400px]">
           <Outlet />
+        </div>
+      </main>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <main className="min-h-screen bg-slate-100 px-3 py-3 text-slate-900">
+        <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-[800px] flex-col gap-3">
+          <Card className="rounded-2xl border border-slate-200 shadow-sm">
+            <CardContent className="space-y-3 p-3">
+              <div className="text-lg font-semibold text-slate-900">linux.do</div>
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-slate-500">Level</span>
+                <button
+                  type="button"
+                  className={[
+                    "rounded-md px-2 py-1 text-xs transition",
+                    categoryLevel === "all"
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                  ].join(" ")}
+                  onClick={() => setCategoryLevel("all")}
+                >
+                  All
+                </button>
+                {levelOptions.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={[
+                      "rounded-md px-2 py-1 text-xs transition",
+                      categoryLevel === option.key
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                    ].join(" ")}
+                    onClick={() => setCategoryLevel(option.key)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                <NavLink
+                  to="/topics"
+                  className={[
+                    "shrink-0 rounded-lg px-2 py-1.5 text-sm transition",
+                    location.pathname === "/topics" && !currentCategory
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                  ].join(" ")}
+                >
+                  All Categories
+                </NavLink>
+                {visibleCategories.map((category) => {
+                  const categoryPath = categoryPathById.get(category.id) ?? category.slug;
+                  const active = location.pathname === "/topics" && currentCategory === categoryPath;
+                  return (
+                    <NavLink
+                      key={category.id}
+                      to={`/topics?category=${encodeURIComponent(categoryPath)}`}
+                      className={[
+                        "shrink-0 rounded-lg px-2 py-1.5 text-sm transition",
+                        active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                      ].join(" ")}
+                    >
+                      {category.name}
+                    </NavLink>
+                  );
+                })}
+              </div>
+              <div>
+                {loggedIn ? (
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    className="h-9 rounded-xl"
+                    onClick={() => {
+                      void handleLogout();
+                    }}
+                    disabled={checkingSession || loggingOut}
+                  >
+                    {loggingOut ? "Logging out..." : "Logout"}
+                  </Button>
+                ) : (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    className="h-9 rounded-xl"
+                    onClick={() => {
+                      void handleLogin();
+                    }}
+                    disabled={checkingSession || openingLogin}
+                  >
+                    {openingLogin ? "Logging in..." : "Login"}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <section className="min-h-0 flex-1">
+            <Outlet />
+          </section>
         </div>
       </main>
     );

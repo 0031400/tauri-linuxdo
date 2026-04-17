@@ -66,6 +66,10 @@ export async function clearLinuxDoBrowsingData() {
   return invoke("clear_linuxdo_browsing_data");
 }
 
+export async function takePendingLinuxDoLoginCookie() {
+  return invoke<string | null>("take_pending_login_cookie");
+}
+
 export async function openTopicWindow(topicId: number, width?: number, height?: number) {
   return invoke("open_topic_window", { topicId, width, height });
 }

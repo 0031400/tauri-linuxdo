@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import {
@@ -14,6 +14,7 @@ import {
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
 import { getTopicAuthor } from "../utils/topics";
 import { readLayoutNumber, writeLayoutNumber } from "../utils/layoutStore";
+import { getPlatformCapabilities } from "../utils/platform";
 import { TopicDetailPanel } from "./topics/TopicDetailPanel";
 import { TopicListPanel } from "./topics/TopicListPanel";
 import { renderCookedContent } from "./topics/renderCookedContent";
@@ -57,9 +58,13 @@ function extractLinuxDoTopicId(url: string) {
 }
 
 export function TopicsPage() {
+  const navigate = useNavigate();
   const location = useLocation();
+  const { isMobile, supportsMultiWindow } = getPlatformCapabilities();
   const query = new URLSearchParams(location.search);
   const isMinimal = query.get("minimal") === "1";
+  const topicParam = query.get("topic")?.trim() || "";
+  const hasTopicParam = /^[1-9]\d*$/.test(topicParam);
   const selectedCategorySlug = query.get("category")?.trim() || "";
   const panelsRef = useRef<HTMLDivElement | null>(null);
   const [listWidth, setListWidth] = useState(420);
@@ -95,25 +100,26 @@ export function TopicsPage() {
   const detailRequestIdRef = useRef(0);
 
   useEffect(() => {
+    if (isMobile) return;
     void readLayoutNumber("layout.topicsListWidth", 420).then((value) => {
       setListWidth(Math.max(300, Math.min(720, Math.round(value))));
       setListWidthReady(true);
     });
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
-    if (!listWidthReady || isMinimal) return;
+    if (isMobile || !listWidthReady || isMinimal) return;
     const timer = window.setTimeout(() => {
       void writeLayoutNumber("layout.topicsListWidth", listWidth);
     }, 1000);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [isMinimal, listWidth, listWidthReady]);
+  }, [isMinimal, isMobile, listWidth, listWidthReady]);
 
   useEffect(() => {
     const onMouseMove = (event: MouseEvent) => {
-      if (!draggingListRef.current || isMinimal) return;
+      if (!draggingListRef.current || isMinimal || isMobile) return;
       const panelsRect = panelsRef.current?.getBoundingClientRect();
       if (!panelsRect) return;
       const next = Math.max(300, Math.min(720, Math.round(event.clientX - panelsRect.left)));
@@ -132,7 +138,7 @@ export function TopicsPage() {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [isMinimal]);
+  }, [isMinimal, isMobile]);
 
   const refreshTopics = async () => {
     setLoading(true);
@@ -150,6 +156,9 @@ export function TopicsPage() {
       setPage(0);
       setHasMore(Boolean(data.topic_list?.more_topics_url));
       setSelectedId((currentId) => currentId ?? nextTopics[0]?.id ?? null);
+      if (isMobile && !hasTopicParam) {
+        setSelectedId(null);
+      }
     } catch (err) {
       console.error(err);
       setTopics([]);
@@ -169,7 +178,7 @@ export function TopicsPage() {
   useEffect(() => {
     if (isMinimal) return;
     void refreshTopics();
-  }, [isMinimal, selectedCategorySlug]);
+  }, [isMinimal, selectedCategorySlug, isMobile, hasTopicParam]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -207,6 +216,10 @@ export function TopicsPage() {
           setSearchUsers(nextUsers);
           setSearchPage(1);
           setSearchHasMore(data.hasMore);
+          if (isMobile && !hasTopicParam) {
+            setSelectedId(null);
+            return;
+          }
           setSelectedId((currentId) => {
             if (currentId && data.topics.some((topic) => topic.id === currentId)) {
               return currentId;
@@ -232,7 +245,7 @@ export function TopicsPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [keyword]);
+  }, [keyword, isMobile, hasTopicParam]);
 
   const loadMoreSearchTopics = async () => {
     if (searchLoading || searchLoadingMore || !searchHasMore) return;
@@ -273,8 +286,11 @@ export function TopicsPage() {
         ({ id: selectedId } as TopicItem)
       );
     }
+    if (isMobile && !hasTopicParam) {
+      return null;
+    }
     return visibleTopics[0] ?? null;
-  }, [searchTopicsList, selectedId, topics, visibleTopics]);
+  }, [searchTopicsList, selectedId, topics, visibleTopics, isMobile, hasTopicParam]);
 
   const loadMoreTopics = async () => {
     if (usingSearch || loading || loadingMore || !hasMore) return;
@@ -397,6 +413,12 @@ export function TopicsPage() {
             }
             const topicId = extractLinuxDoTopicId(url);
             if (topicId) {
+              if (isMobile || !supportsMultiWindow) {
+                const params = new URLSearchParams(location.search);
+                params.set("topic", String(topicId));
+                navigate(`/topics?${params.toString()}`);
+                return;
+              }
               void (async () => {
                 const detailWidth = detailPanelRef.current
                   ? Math.round(detailPanelRef.current.getBoundingClientRect().width)
@@ -421,7 +443,24 @@ export function TopicsPage() {
       );
     }
     return result;
-  }, [posts]);
+  }, [isMobile, location.search, navigate, posts, supportsMultiWindow]);
+
+  const closeTopicDetail = () => {
+    const params = new URLSearchParams(location.search);
+    params.delete("topic");
+    const nextQuery = params.toString();
+    navigate(nextQuery ? `/topics?${nextQuery}` : "/topics");
+  };
+
+  const selectTopic = (topicId: number) => {
+    if (isMobile) {
+      const params = new URLSearchParams(location.search);
+      params.set("topic", String(topicId));
+      navigate(`/topics?${params.toString()}`);
+      return;
+    }
+    setSelectedId(topicId);
+  };
 
   return (
     <>
@@ -447,6 +486,90 @@ export function TopicsPage() {
             }}
           />
         </div>
+      ) : isMobile ? (
+        <div className="flex h-[calc(100vh-2rem)] flex-col gap-2">
+          {hasTopicParam ? (
+            <button
+              type="button"
+              className="self-start rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white"
+              onClick={closeTopicDetail}
+            >
+              Back To List
+            </button>
+          ) : null}
+
+          <div className="min-h-0 flex-1">
+            {hasTopicParam ? (
+              <TopicDetailPanel
+                selectedTopic={selectedTopic}
+                detail={detail}
+                detailAuthor={detailAuthor}
+                detailLikeCount={detailLikeCount}
+                detailLoading={detailLoading}
+                detailError={detailError}
+                posts={posts}
+                renderPostContent={(post) => postContentMap.get(post.id) ?? null}
+                loadingMorePosts={loadingMorePosts}
+                hasMorePosts={hasMorePosts}
+                onLoadMorePosts={() => {
+                  void loadMoreDetailPosts();
+                }}
+                onRetryDetail={() => {
+                  if (!selectedTopic?.id) return;
+                  void refreshDetail(selectedTopic.id);
+                }}
+              />
+            ) : (
+              <TopicListPanel
+                filteredTopics={visibleTopics}
+                selectedTopic={selectedTopic}
+                users={visibleUsers}
+                loading={loading || searchLoading}
+                error={searchError || error}
+                keyword={keyword}
+                onKeywordChange={setKeyword}
+                onRefresh={() => {
+                  if (usingSearch) {
+                    const term = keyword.trim();
+                    if (!term) return;
+                    setSearchLoading(true);
+                    setSearchError("");
+                    void searchTopics(term, 1)
+                      .then((data) => {
+                        const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
+                        setSearchTopicsList(data.topics);
+                        setSearchUsers(nextUsers);
+                        setSearchPage(1);
+                        setSearchHasMore(data.hasMore);
+                        setSelectedId(null);
+                      })
+                      .catch((err: unknown) => {
+                        console.error(err);
+                        setSearchTopicsList([]);
+                        setSearchUsers({});
+                        setSearchError("Failed to search topics.");
+                      })
+                      .finally(() => {
+                        setSearchLoading(false);
+                      });
+                    return;
+                  }
+                  void refreshTopics();
+                }}
+                onSelectTopic={selectTopic}
+                loadingMore={usingSearch ? searchLoadingMore : loadingMore}
+                hasMore={usingSearch ? searchHasMore : hasMore}
+                onLoadMore={() => {
+                  if (usingSearch) {
+                    void loadMoreSearchTopics();
+                    return;
+                  }
+                  void loadMoreTopics();
+                }}
+              />
+            )}
+          </div>
+        </div>
       ) : (
         <div ref={panelsRef} className="flex h-[calc(100vh-2rem)] gap-3">
           <div className="shrink-0" style={{ width: `${listWidth}px` }}>
@@ -471,6 +594,10 @@ export function TopicsPage() {
                       setSearchUsers(nextUsers);
                       setSearchPage(1);
                       setSearchHasMore(data.hasMore);
+                      if (isMobile && !hasTopicParam) {
+                        setSelectedId(null);
+                        return;
+                      }
                       setSelectedId((currentId) => {
                         if (currentId && data.topics.some((topic) => topic.id === currentId)) {
                           return currentId;
@@ -491,7 +618,7 @@ export function TopicsPage() {
                 }
                 void refreshTopics();
               }}
-              onSelectTopic={setSelectedId}
+              onSelectTopic={selectTopic}
               loadingMore={usingSearch ? searchLoadingMore : loadingMore}
               hasMore={usingSearch ? searchHasMore : hasMore}
               onLoadMore={() => {
