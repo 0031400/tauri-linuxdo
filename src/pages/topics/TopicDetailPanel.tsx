@@ -14,6 +14,8 @@ type TopicDetailPanelProps = {
   selectedTopic: TopicItem | null;
   detail: TopicDetailResponse | null;
   detailAuthor: TopicUser | null;
+  canGoBackTopic: boolean;
+  previousTopicId: number | null;
   detailLikeCount: number;
   detailLoading: boolean;
   detailError: string;
@@ -22,6 +24,7 @@ type TopicDetailPanelProps = {
   loadingMorePosts: boolean;
   hasMorePosts: boolean;
   onLoadMorePosts: () => void;
+  onBackTopic: () => void;
   onRetryDetail: () => void;
 };
 
@@ -33,6 +36,8 @@ export function TopicDetailPanel({
   selectedTopic,
   detail,
   detailAuthor,
+  canGoBackTopic,
+  previousTopicId,
   detailLikeCount,
   detailLoading,
   detailError,
@@ -41,6 +46,7 @@ export function TopicDetailPanel({
   loadingMorePosts,
   hasMorePosts,
   onLoadMorePosts,
+  onBackTopic,
   onRetryDetail,
 }: TopicDetailPanelProps) {
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
@@ -73,7 +79,19 @@ export function TopicDetailPanel({
                 <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 {detailAuthor?.name || detailAuthor?.username || "linux.do"}
                 </div>
-                <h2 className="text-xl font-semibold text-slate-900">{getTopicTitle(selectedTopic)}</h2>
+                <div className="flex items-center gap-2">
+                  {canGoBackTopic && previousTopicId ? (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      className="min-w-0 rounded-lg px-2 py-0.5 text-xs normal-case"
+                      onClick={onBackTopic}
+                    >
+                      Back #{previousTopicId}
+                    </Button>
+                  ) : null}
+                  <h2 className="text-xl font-semibold text-slate-900">{getTopicTitle(selectedTopic)}</h2>
+                </div>
               </div>
               <Chip
                 label={`${detail?.posts_count ?? selectedTopic.posts_count ?? 0} replies`}

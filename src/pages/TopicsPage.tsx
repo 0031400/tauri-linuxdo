@@ -8,7 +8,6 @@ import {
   fetchLatestTopicsByCategory,
   fetchTopicDetail,
   fetchTopicPosts,
-  openTopicWindow,
   searchTopics,
 } from "../api/linuxdo";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
@@ -60,7 +59,7 @@ function extractLinuxDoTopicId(url: string) {
 export function TopicsPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isMobile, supportsMultiWindow } = getPlatformCapabilities();
+  const { isMobile } = getPlatformCapabilities();
   const query = new URLSearchParams(location.search);
   const isMinimal = query.get("minimal") === "1";
   const topicParam = query.get("topic")?.trim() || "";
@@ -97,6 +96,7 @@ export function TopicsPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxSlides, setLightboxSlides] = useState<Array<{ src: string }>>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [topicHistoryStack, setTopicHistoryStack] = useState<number[]>([]);
   const detailRequestIdRef = useRef(0);
 
   useEffect(() => {
@@ -395,6 +395,28 @@ export function TopicsPage() {
   const detailAuthor = detail?.details?.created_by ?? selectedAuthor ?? null;
   const detailLikeCount = detail?.like_count ?? getPostLikeCount(firstPost ?? undefined);
 
+  const navigateToTopic = (topicId: number, pushCurrent: boolean) => {
+    if (pushCurrent && selectedTopic?.id && selectedTopic.id !== topicId) {
+      setTopicHistoryStack((current) => [...current, selectedTopic.id as number]);
+    }
+    const params = new URLSearchParams(location.search);
+    params.set("topic", String(topicId));
+    navigate(`/topics?${params.toString()}`);
+  };
+
+  const goBackTopic = () => {
+    let previousTopicId: number | null = null;
+    setTopicHistoryStack((current) => {
+      if (current.length === 0) return current;
+      previousTopicId = current[current.length - 1];
+      return current.slice(0, -1);
+    });
+    if (!previousTopicId) return;
+    const params = new URLSearchParams(location.search);
+    params.set("topic", String(previousTopicId));
+    navigate(`/topics?${params.toString()}`);
+  };
+
   const postContentMap = useMemo(() => {
     const result = new Map<number, ReturnType<typeof renderCookedContent>>();
     for (const post of posts) {
@@ -413,28 +435,7 @@ export function TopicsPage() {
             }
             const topicId = extractLinuxDoTopicId(url);
             if (topicId) {
-              if (isMobile || !supportsMultiWindow) {
-                const params = new URLSearchParams(location.search);
-                params.set("topic", String(topicId));
-                navigate(`/topics?${params.toString()}`);
-                return;
-              }
-              void (async () => {
-                const detailWidth = detailPanelRef.current
-                  ? Math.round(detailPanelRef.current.getBoundingClientRect().width)
-                  : undefined;
-                const savedMainHeight = await readLayoutNumber(
-                  "layout.mainWindowHeight",
-                  Math.max(window.innerHeight, 540),
-                );
-                const fallbackLogicalHeight = Math.max(window.innerHeight, 540);
-                const dpr = Math.max(window.devicePixelRatio || 1, 1);
-                const normalizedHeight =
-                  savedMainHeight > fallbackLogicalHeight * 1.25
-                    ? savedMainHeight / dpr
-                    : savedMainHeight;
-                await openTopicWindow(topicId, detailWidth, normalizedHeight);
-              })();
+              navigateToTopic(topicId, true);
               return;
             }
             void openUrl(url);
@@ -443,9 +444,10 @@ export function TopicsPage() {
       );
     }
     return result;
-  }, [isMobile, location.search, navigate, posts, supportsMultiWindow]);
+  }, [location.search, navigate, navigateToTopic, posts]);
 
   const closeTopicDetail = () => {
+    setTopicHistoryStack([]);
     const params = new URLSearchParams(location.search);
     params.delete("topic");
     const nextQuery = params.toString();
@@ -453,6 +455,7 @@ export function TopicsPage() {
   };
 
   const selectTopic = (topicId: number) => {
+    setTopicHistoryStack([]);
     if (isMobile) {
       const params = new URLSearchParams(location.search);
       params.set("topic", String(topicId));
@@ -484,6 +487,9 @@ export function TopicsPage() {
               if (!selectedTopic?.id) return;
               void refreshDetail(selectedTopic.id);
             }}
+            canGoBackTopic={topicHistoryStack.length > 0}
+            previousTopicId={topicHistoryStack[topicHistoryStack.length - 1] ?? null}
+            onBackTopic={goBackTopic}
           />
         </div>
       ) : isMobile ? (
@@ -518,6 +524,9 @@ export function TopicsPage() {
                   if (!selectedTopic?.id) return;
                   void refreshDetail(selectedTopic.id);
                 }}
+                canGoBackTopic={topicHistoryStack.length > 0}
+                previousTopicId={topicHistoryStack[topicHistoryStack.length - 1] ?? null}
+                onBackTopic={goBackTopic}
               />
             ) : (
               <TopicListPanel
@@ -659,6 +668,9 @@ export function TopicsPage() {
                 if (!selectedTopic?.id) return;
                 void refreshDetail(selectedTopic.id);
               }}
+              canGoBackTopic={topicHistoryStack.length > 0}
+              previousTopicId={topicHistoryStack[topicHistoryStack.length - 1] ?? null}
+              onBackTopic={goBackTopic}
             />
           </div>
         </div>

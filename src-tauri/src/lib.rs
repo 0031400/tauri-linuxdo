@@ -3,16 +3,10 @@ use std::sync::{Mutex, OnceLock};
 use tauri::{webview::Url, Manager};
 use tauri::WebviewWindow;
 use tauri::webview::PageLoadEvent;
-#[cfg(not(mobile))]
-use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 const LOGIN_URL: &str = "https://linux.do/login";
 const BASE_URL: &str = "https://linux.do/";
 const MAIN_WINDOW_LABEL: &str = "main";
-#[cfg(not(mobile))]
-const TOPIC_WINDOW_LABEL_PREFIX: &str = "linuxdo-topic-";
-#[cfg(mobile)]
-const ERR_UNSUPPORTED_ON_MOBILE: &str = "UNSUPPORTED_ON_MOBILE";
 
 static PRE_LOGIN_URL: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 static PENDING_LOGIN_COOKIE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
@@ -111,55 +105,6 @@ fn take_pending_login_cookie() -> Option<String> {
         .and_then(|mut guard| guard.take())
 }
 
-#[tauri::command]
-#[cfg(not(mobile))]
-async fn open_topic_window(
-    app: tauri::AppHandle,
-    topic_id: u64,
-    width: Option<f64>,
-    height: Option<f64>,
-) -> Result<(), String> {
-    let label = format!("{TOPIC_WINDOW_LABEL_PREFIX}{topic_id}");
-    if let Some(existing) = app.get_webview_window(&label) {
-        let _ = existing.set_focus();
-        return Ok(());
-    }
-
-    let target_hash = format!("/topics?topic={topic_id}&minimal=1");
-    let init_script = format!(
-        r#"
-if (window.location.hash !== "{target_hash}") {{
-  window.location.hash = "{target_hash}";
-}}
-"#
-    );
-
-    let window_width = width.unwrap_or(1180.0).round().clamp(420.0, 3000.0);
-    let window_height = height.unwrap_or(820.0).round().clamp(540.0, 2200.0);
-
-    WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html".into()))
-        .title(&format!("Topic #{topic_id}"))
-        .inner_size(window_width, window_height)
-        .resizable(true)
-        .focused(true)
-        .initialization_script(&init_script)
-        .build()
-        .map_err(|error| error.to_string())?;
-
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(mobile)]
-async fn open_topic_window(
-    _app: tauri::AppHandle,
-    _topic_id: u64,
-    _width: Option<f64>,
-    _height: Option<f64>,
-) -> Result<(), String> {
-    Err(ERR_UNSUPPORTED_ON_MOBILE.to_string())
-}
-
 async fn get_linuxdo_cookie_header_from_webview(
     webview: WebviewWindow,
 ) -> Result<Option<String>, String> {
@@ -230,8 +175,7 @@ pub fn run() {
             platform_capabilities,
             open_login_webview,
             clear_linuxdo_browsing_data,
-            take_pending_login_cookie,
-            open_topic_window
+            take_pending_login_cookie
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
