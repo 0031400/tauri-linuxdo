@@ -3,7 +3,9 @@
 export const BASE_URL = "https://linux.do";
 
 export function getTopicTitle(topic: TopicItem) {
-  return stripHtml(topic.fancy_title || topic.title || `Topic #${topic.id}`);
+  const raw = stripHtml(topic.fancy_title || topic.title || `Topic #${topic.id}`);
+  const decoded = decodeHtmlEntities(raw);
+  return decodeEmojiShortcodes(decoded);
 }
 
 export function getTopicUrl(topic: TopicItem) {
@@ -48,6 +50,36 @@ export function buildAvatarUrl(template: string, size: number) {
 
 export function stripHtml(input: string) {
   return input.replace(/<[^>]+>/g, "").trim();
+}
+
+function decodeHtmlEntities(text: string) {
+  if (!text || typeof document === "undefined") return text;
+  const textarea = document.createElement("textarea");
+  let current = text;
+  for (let i = 0; i < 3; i += 1) {
+    textarea.innerHTML = current;
+    const next = textarea.value;
+    if (next === current) break;
+    current = next;
+  }
+  return current;
+}
+
+const EMOJI_SHORTCODE_MAP: Record<string, string> = {
+  rocket: "🚀",
+  fire: "🔥",
+  sparkles: "✨",
+  tada: "🎉",
+  heart: "❤️",
+  thumbs_up: "👍",
+};
+
+function decodeEmojiShortcodes(text: string) {
+  if (!text) return text;
+  return text.replace(/:([a-z0-9_+-]+):/gi, (match, code: string) => {
+    const normalized = code.toLowerCase();
+    return EMOJI_SHORTCODE_MAP[normalized] ?? match;
+  });
 }
 
 export function formatRelativeTime(value?: string) {

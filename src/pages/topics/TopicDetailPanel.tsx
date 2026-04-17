@@ -25,6 +25,7 @@ type TopicDetailPanelProps = {
   hasMorePosts: boolean;
   onLoadMorePosts: () => void;
   onBackTopic: () => void;
+  onOpenExternalTopic: () => void;
   onRetryDetail: () => void;
 };
 
@@ -47,6 +48,7 @@ export function TopicDetailPanel({
   hasMorePosts,
   onLoadMorePosts,
   onBackTopic,
+  onOpenExternalTopic,
   onRetryDetail,
 }: TopicDetailPanelProps) {
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
@@ -75,9 +77,9 @@ export function TopicDetailPanel({
         <div className="flex min-h-full flex-col">
           <div className="rounded-xl bg-slate-50/70 px-3 py-2.5">
             <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {detailAuthor?.name || detailAuthor?.username || "linux.do"}
+                  {detailAuthor?.name || detailAuthor?.username || "linux.do"}
                 </div>
                 <div className="flex items-center gap-2">
                   {canGoBackTopic && previousTopicId ? (
@@ -90,14 +92,21 @@ export function TopicDetailPanel({
                       Back #{previousTopicId}
                     </Button>
                   ) : null}
-                  <h2 className="text-xl font-semibold text-slate-900">{getTopicTitle(selectedTopic)}</h2>
+                  <h2 className="whitespace-normal break-words text-xl font-semibold text-slate-900">
+                    {getTopicTitle(selectedTopic)}
+                  </h2>
                 </div>
               </div>
-              <Chip
-                label={`${detail?.posts_count ?? selectedTopic.posts_count ?? 0} replies`}
-                color="primary"
-                size="small"
-              />
+              <div className="flex shrink-0 items-center gap-2">
+                <Button size="small" variant="outlined" className="rounded-lg normal-case" onClick={onOpenExternalTopic}>
+                  Open In Browser
+                </Button>
+                <Chip
+                  label={`${detail?.posts_count ?? selectedTopic.posts_count ?? 0} replies`}
+                  color="primary"
+                  size="small"
+                />
+              </div>
             </div>
 
             <div className="mt-2 text-xs text-slate-500">
@@ -163,7 +172,6 @@ export function TopicDetailPanel({
                           {content ?? <p className="text-slate-500">No content</p>}
                         </div>
                       </article>
-
                     </div>
                   );
                 })}
@@ -183,7 +191,6 @@ export function TopicDetailPanel({
               </div>
             )}
           </div>
-
         </div>
       </CardContent>
     </Card>

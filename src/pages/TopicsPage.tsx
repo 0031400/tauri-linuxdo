@@ -347,6 +347,15 @@ export function TopicsPage() {
   const firstPost = posts[0] ?? null;
   const detailAuthor = detail?.details?.created_by ?? selectedAuthor ?? null;
   const detailLikeCount = detail?.like_count ?? getPostLikeCount(firstPost ?? undefined);
+  const topicExternalUrl = useMemo(() => {
+    const topicId = detail?.id ?? selectedTopic?.id;
+    if (!topicId) return null;
+    const topicSlug = (detail?.slug ?? selectedTopic?.slug ?? "").trim();
+    if (!topicSlug) {
+      return `https://linux.do/t/${topicId}`;
+    }
+    return `https://linux.do/t/${encodeURIComponent(topicSlug)}/${topicId}`;
+  }, [detail?.id, detail?.slug, selectedTopic?.id, selectedTopic?.slug]);
 
   const navigateToTopic = (topicId: number, pushCurrent: boolean) => {
     if (pushCurrent && selectedTopic?.id && selectedTopic.id !== topicId) {
@@ -442,6 +451,10 @@ export function TopicsPage() {
             }}
             canGoBackTopic={topicHistoryStack.length > 0}
             previousTopicId={topicHistoryStack[topicHistoryStack.length - 1] ?? null}
+            onOpenExternalTopic={() => {
+              if (!topicExternalUrl) return;
+              void openUrl(topicExternalUrl);
+            }}
             onBackTopic={goBackTopic}
           />
         </div>
@@ -479,6 +492,10 @@ export function TopicsPage() {
                 }}
                 canGoBackTopic={topicHistoryStack.length > 0}
                 previousTopicId={topicHistoryStack[topicHistoryStack.length - 1] ?? null}
+                onOpenExternalTopic={() => {
+                  if (!topicExternalUrl) return;
+                  void openUrl(topicExternalUrl);
+                }}
                 onBackTopic={goBackTopic}
               />
             ) : (
@@ -614,6 +631,10 @@ export function TopicsPage() {
               }}
               canGoBackTopic={topicHistoryStack.length > 0}
               previousTopicId={topicHistoryStack[topicHistoryStack.length - 1] ?? null}
+              onOpenExternalTopic={() => {
+                if (!topicExternalUrl) return;
+                void openUrl(topicExternalUrl);
+              }}
               onBackTopic={goBackTopic}
             />
           </div>
