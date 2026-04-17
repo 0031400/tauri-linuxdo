@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Card, CardContent, CircularProgress } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
@@ -13,7 +12,6 @@ import {
   takePendingLinuxDoLoginCookie,
 } from "../../api/linuxdo";
 import type { TopicCategory } from "../../types/topic";
-import { readLayoutNumber, writeLayoutNumber } from "../../utils/layoutStore";
 import { getPlatformCapabilities } from "../../utils/platform";
 import { notifySessionChanged, SESSION_EVENT } from "../../utils/session";
 
@@ -36,11 +34,7 @@ export function DesktopShell() {
   const query = new URLSearchParams(location.search);
   const isMinimal = query.get("minimal") === "1";
   const currentCategory = query.get("category")?.trim() || "";
-  const { isMobile, supportsWindowResize } = getPlatformCapabilities();
-  const layoutRootRef = useRef<HTMLDivElement | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(240);
-  const [sidebarWidthReady, setSidebarWidthReady] = useState(false);
-  const draggingSidebarRef = useRef(false);
+  const { isMobile } = getPlatformCapabilities();
   const [initializing, setInitializing] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
   const [checkingSession, setCheckingSession] = useState(false);
@@ -91,115 +85,6 @@ export function DesktopShell() {
     }
     return result;
   }, [categories]);
-
-  useEffect(() => {
-    if (isMinimal || !supportsWindowResize) return;
-
-    const appWindow = getCurrentWindow();
-    let unlistenResized: (() => void) | undefined;
-    let saveTimer: number | undefined;
-    let disposed = false;
-
-    const clampWindowWidth = (value: number) => Math.max(720, Math.min(3000, Math.round(value)));
-    const clampWindowHeight = (value: number) => Math.max(540, Math.min(2200, Math.round(value)));
-    const normalizeMaybePhysical = (saved: number, currentLogical: number, scale: number) => {
-      if (saved > currentLogical * 1.25) {
-        return saved / Math.max(scale, 1);
-      }
-      return saved;
-    };
-
-    void (async () => {
-      try {
-        const scaleFactor = await appWindow.scaleFactor();
-        const currentSize = await appWindow.innerSize();
-        const currentLogicalWidth = currentSize.width / Math.max(scaleFactor, 1);
-        const currentLogicalHeight = currentSize.height / Math.max(scaleFactor, 1);
-        const [savedWidth, savedHeight] = await Promise.all([
-          readLayoutNumber("layout.mainWindowWidth", currentLogicalWidth),
-          readLayoutNumber("layout.mainWindowHeight", currentLogicalHeight),
-        ]);
-        const targetLogicalWidth = normalizeMaybePhysical(savedWidth, currentLogicalWidth, scaleFactor);
-        const targetLogicalHeight = normalizeMaybePhysical(savedHeight, currentLogicalHeight, scaleFactor);
-        if (!disposed) {
-          await appWindow.setSize(
-            new LogicalSize(
-              clampWindowWidth(targetLogicalWidth),
-              clampWindowHeight(targetLogicalHeight),
-            ),
-          );
-        }
-      } catch (error) {
-        console.error(error);
-      }
-
-      try {
-        unlistenResized = await appWindow.onResized(({ payload: size }) => {
-          if (saveTimer) {
-            window.clearTimeout(saveTimer);
-          }
-          saveTimer = window.setTimeout(() => {
-            const scale = Math.max(window.devicePixelRatio || 1, 1);
-            void Promise.all([
-              writeLayoutNumber("layout.mainWindowWidth", clampWindowWidth(size.width / scale)),
-              writeLayoutNumber("layout.mainWindowHeight", clampWindowHeight(size.height / scale)),
-            ]);
-          }, 1000);
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    })();
-
-    return () => {
-      disposed = true;
-      if (saveTimer) {
-        window.clearTimeout(saveTimer);
-      }
-      unlistenResized?.();
-    };
-  }, [isMinimal, supportsWindowResize]);
-
-  useEffect(() => {
-    if (isMobile) return;
-    void readLayoutNumber("layout.sidebarWidth", 240).then((value) => {
-      setSidebarWidth(Math.max(180, Math.min(420, Math.round(value))));
-      setSidebarWidthReady(true);
-    });
-  }, [isMobile]);
-
-  useEffect(() => {
-    if (isMobile || !sidebarWidthReady || isMinimal) return;
-    const timer = window.setTimeout(() => {
-      void writeLayoutNumber("layout.sidebarWidth", sidebarWidth);
-    }, 1000);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [isMinimal, isMobile, sidebarWidth, sidebarWidthReady]);
-
-  useEffect(() => {
-    const onMouseMove = (event: MouseEvent) => {
-      if (!draggingSidebarRef.current || isMinimal || isMobile) return;
-      const rootRect = layoutRootRef.current?.getBoundingClientRect();
-      if (!rootRect) return;
-      const next = Math.max(180, Math.min(420, Math.round(event.clientX - rootRect.left)));
-      setSidebarWidth(next);
-    };
-
-    const onMouseUp = () => {
-      draggingSidebarRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, [isMinimal, isMobile]);
 
   useEffect(() => {
     const refreshSession = async () => {
@@ -439,8 +324,8 @@ export function DesktopShell() {
 
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-4 text-slate-900">
-      <div ref={layoutRootRef} className="mx-auto flex h-[calc(100vh-2rem)] max-w-[1500px] gap-4">
-        <aside className="shrink-0" style={{ width: `${sidebarWidth}px` }}>
+      <div className="mx-auto flex h-[calc(100vh-2rem)] max-w-[1680px]">
+        <aside className="min-w-0 flex-[1_1_0%] pr-2">
           <Card className="h-full rounded-2xl border border-slate-200 shadow-md shadow-slate-200/60">
             <CardContent className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4">
               <div className="text-2xl font-semibold text-slate-900">linux.do</div>
@@ -550,16 +435,7 @@ export function DesktopShell() {
           </Card>
         </aside>
 
-        <div
-          className="w-1 shrink-0 cursor-col-resize rounded bg-slate-200/80 hover:bg-slate-300"
-          onMouseDown={() => {
-            draggingSidebarRef.current = true;
-            document.body.style.cursor = "col-resize";
-            document.body.style.userSelect = "none";
-          }}
-        />
-
-        <section className="min-w-0 flex-1">
+        <section className="min-w-0 flex-[3_1_0%] pl-2">
           <Outlet />
         </section>
       </div>

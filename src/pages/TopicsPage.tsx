@@ -12,7 +12,6 @@ import {
 } from "../api/linuxdo";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicUser } from "../types/topic";
 import { getTopicAuthor } from "../utils/topics";
-import { readLayoutNumber, writeLayoutNumber } from "../utils/layoutStore";
 import { getPlatformCapabilities } from "../utils/platform";
 import { TopicDetailPanel } from "./topics/TopicDetailPanel";
 import { TopicListPanel } from "./topics/TopicListPanel";
@@ -65,11 +64,6 @@ export function TopicsPage() {
   const topicParam = query.get("topic")?.trim() || "";
   const hasTopicParam = /^[1-9]\d*$/.test(topicParam);
   const selectedCategorySlug = query.get("category")?.trim() || "";
-  const panelsRef = useRef<HTMLDivElement | null>(null);
-  const [listWidth, setListWidth] = useState(420);
-  const [listWidthReady, setListWidthReady] = useState(false);
-  const draggingListRef = useRef(false);
-  const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [users, setUsers] = useState<Record<number, TopicUser>>({});
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -98,47 +92,6 @@ export function TopicsPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [topicHistoryStack, setTopicHistoryStack] = useState<number[]>([]);
   const detailRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    if (isMobile) return;
-    void readLayoutNumber("layout.topicsListWidth", 420).then((value) => {
-      setListWidth(Math.max(300, Math.min(720, Math.round(value))));
-      setListWidthReady(true);
-    });
-  }, [isMobile]);
-
-  useEffect(() => {
-    if (isMobile || !listWidthReady || isMinimal) return;
-    const timer = window.setTimeout(() => {
-      void writeLayoutNumber("layout.topicsListWidth", listWidth);
-    }, 1000);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [isMinimal, isMobile, listWidth, listWidthReady]);
-
-  useEffect(() => {
-    const onMouseMove = (event: MouseEvent) => {
-      if (!draggingListRef.current || isMinimal || isMobile) return;
-      const panelsRect = panelsRef.current?.getBoundingClientRect();
-      if (!panelsRect) return;
-      const next = Math.max(300, Math.min(720, Math.round(event.clientX - panelsRect.left)));
-      setListWidth(next);
-    };
-
-    const onMouseUp = () => {
-      draggingListRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, [isMinimal, isMobile]);
 
   const refreshTopics = async () => {
     setLoading(true);
@@ -580,8 +533,8 @@ export function TopicsPage() {
           </div>
         </div>
       ) : (
-        <div ref={panelsRef} className="flex h-[calc(100vh-2rem)] gap-3">
-          <div className="shrink-0" style={{ width: `${listWidth}px` }}>
+        <div className="flex h-[calc(100vh-2rem)]">
+          <div className="min-w-0 flex-[1_1_0%] pr-1.5">
             <TopicListPanel
               filteredTopics={visibleTopics}
               selectedTopic={selectedTopic}
@@ -640,16 +593,7 @@ export function TopicsPage() {
             />
           </div>
 
-          <div
-            className="w-1 shrink-0 cursor-col-resize rounded bg-slate-200/80 hover:bg-slate-300"
-            onMouseDown={() => {
-              draggingListRef.current = true;
-              document.body.style.cursor = "col-resize";
-              document.body.style.userSelect = "none";
-            }}
-          />
-
-          <div ref={detailPanelRef} className="min-w-0 flex-1">
+          <div className="min-w-0 flex-[2_1_0%] pl-1.5">
             <TopicDetailPanel
               selectedTopic={selectedTopic}
               detail={detail}
