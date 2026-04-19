@@ -1,8 +1,8 @@
 import { Alert, Avatar, Button, Card, CardContent, CircularProgress, TextField } from "@mui/material";
 import type { UIEvent } from "react";
 import type { TopicItem, TopicUser } from "../../types/topic";
+import { useAvatarSrc } from "../../hooks/useAvatarSrc";
 import {
-  buildAvatarUrl,
   formatRelativeTime,
   getTopicAuthor,
   getTopicTagKey,
@@ -24,6 +24,22 @@ type TopicListPanelProps = {
   hasMore: boolean;
   onLoadMore: () => void;
 };
+
+type TopicAuthorAvatarProps = {
+  avatarTemplate?: string;
+  fallback: string;
+  active: boolean;
+};
+
+function TopicAuthorAvatar({ avatarTemplate, fallback, active }: TopicAuthorAvatarProps) {
+  const avatarSrc = useAvatarSrc(avatarTemplate, 96);
+
+  return (
+    <Avatar src={avatarSrc} className={active ? "bg-white text-slate-900" : "bg-slate-900 text-white"}>
+      {fallback}
+    </Avatar>
+  );
+}
 
 export function TopicListPanel({
   filteredTopics,
@@ -89,12 +105,11 @@ export function TopicListPanel({
                   ].join(" ")}
                 >
                   <div className="flex items-start gap-2.5">
-                    <Avatar
-                      src={author?.avatar_template ? buildAvatarUrl(author.avatar_template, 96) : undefined}
-                      className={active ? "bg-white text-slate-900" : "bg-slate-900 text-white"}
-                    >
-                      {author?.username?.slice(0, 1)?.toUpperCase() ?? "L"}
-                    </Avatar>
+                    <TopicAuthorAvatar
+                      avatarTemplate={author?.avatar_template}
+                      fallback={author?.username?.slice(0, 1)?.toUpperCase() ?? "L"}
+                      active={active}
+                    />
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">

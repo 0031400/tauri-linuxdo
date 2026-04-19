@@ -96,11 +96,18 @@ export function ProfilePage() {
 
   return (
     <div className={isMobile ? "min-h-[calc(100vh-6rem)]" : "mx-auto max-w-[760px] py-6"}>
-      <Card className="rounded-2xl border border-slate-200 shadow-sm">
+      <Card className="rounded-[28px] border border-slate-200/80 bg-white/95 shadow-lg shadow-slate-200/70">
         <CardContent className={isMobile ? "space-y-4 p-4" : "space-y-5 p-6"}>
-          <div>
-            <div className="text-lg font-semibold">Profile</div>
-            <div className="text-sm text-slate-500">Manage linux.do login status here.</div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xl font-semibold tracking-tight text-slate-900">Profile</div>
+            <div
+              className={[
+                "rounded-full px-3 py-1 text-xs font-medium",
+                loggedIn ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500",
+              ].join(" ")}
+            >
+              {loggedIn ? "Connected" : "Disconnected"}
+            </div>
           </div>
 
           {initializing ? (
@@ -108,32 +115,32 @@ export function ProfilePage() {
               <CircularProgress size={24} />
             </div>
           ) : (
-            <>
-              <Alert severity={loggedIn ? "success" : "info"}>
-                {loggedIn ? "Current status: Logged in" : "Current status: Not logged in"}
-              </Alert>
+            <div className="flex flex-col gap-3">
+              <Alert severity={loggedIn ? "success" : "info"}>{loggedIn ? "已登录" : "未登录"}</Alert>
               {actionError ? <Alert severity="error">{actionError}</Alert> : null}
               <Button
                 fullWidth
                 variant="contained"
+                className="h-11 rounded-xl"
                 onClick={() => {
                   void handleLogin();
                 }}
                 disabled={checkingSession || openingLogin || clearingCookie}
               >
-                {openingLogin ? "Opening login..." : "Login"}
+                {openingLogin ? "logging in..." : "login"}
               </Button>
               <Button
                 fullWidth
                 variant="outlined"
+                className="h-11 rounded-xl"
                 onClick={() => {
                   void handleClearCookie();
                 }}
                 disabled={checkingSession || openingLogin || clearingCookie}
               >
-                {clearingCookie ? "Clearing cookie..." : "Clear linux.do Cookie"}
+                {clearingCookie ? "logging out..." : "logout"}
               </Button>
-            </>
+            </div>
           )}
         </CardContent>
       </Card>

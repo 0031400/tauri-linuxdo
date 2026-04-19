@@ -547,7 +547,7 @@ export function TopicsPage() {
           </div>
         </div>
       ) : (
-        <div className="flex h-[calc(100vh-2rem)] flex-col gap-2">
+        <div className="mx-auto flex h-[calc(100vh-2rem)] max-w-[760px] flex-col gap-2">
           {hasTopicParam ? (
             <button
               type="button"

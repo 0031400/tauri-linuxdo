@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { Alert, Avatar, Button, Card, CardContent, Chip, CircularProgress } from "@mui/material";
 import type { UIEvent } from "react";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicTag, TopicUser } from "../../types/topic";
+import { useAvatarSrc } from "../../hooks/useAvatarSrc";
 import {
-  buildAvatarUrl,
   formatAbsoluteTime,
   getTopicTagKey,
   getTopicTagLabel,
@@ -31,6 +31,21 @@ type TopicDetailPanelProps = {
 
 function getTags(detail: TopicDetailResponse | null, selectedTopic: TopicItem | null): TopicTag[] {
   return detail?.tags ?? selectedTopic?.tags ?? [];
+}
+
+type PostAuthorAvatarProps = {
+  avatarTemplate?: string;
+  fallback: string;
+};
+
+function PostAuthorAvatar({ avatarTemplate, fallback }: PostAuthorAvatarProps) {
+  const avatarSrc = useAvatarSrc(avatarTemplate, 64);
+
+  return (
+    <Avatar src={avatarSrc} className="h-7 w-7 bg-slate-900 text-xs">
+      {fallback}
+    </Avatar>
+  );
 }
 
 export function TopicDetailPanel({
@@ -156,12 +171,10 @@ export function TopicDetailPanel({
                       <article className="rounded-xl border border-slate-200 bg-white p-3">
                         <div className="mb-2.5 flex items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2">
-                            <Avatar
-                              src={post.avatar_template ? buildAvatarUrl(post.avatar_template, 64) : undefined}
-                              className="h-7 w-7 bg-slate-900 text-xs"
-                            >
-                              {authorName.slice(0, 1).toUpperCase()}
-                            </Avatar>
+                            <PostAuthorAvatar
+                              avatarTemplate={post.avatar_template}
+                              fallback={authorName.slice(0, 1).toUpperCase()}
+                            />
                             <div className="text-sm font-medium text-slate-700">
                               L{floor} | {authorName}
                             </div>

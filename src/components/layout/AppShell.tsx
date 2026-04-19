@@ -36,12 +36,10 @@ export function AppShell() {
       >
         {isMobile ? null : (
           <aside className="sticky top-4 h-[calc(100vh-2rem)] w-[280px] shrink-0">
-            <Card className="h-full rounded-[28px] border border-slate-200 bg-white shadow-md shadow-slate-200/60">
-              <CardContent className="flex h-full flex-col gap-5 p-4">
-                <div className="rounded-[24px] bg-slate-900 px-4 py-5 text-white">
-                  <div className="text-xs uppercase tracking-[0.3em] text-slate-300">Windows</div>
-                  <div className="mt-2 text-2xl font-semibold">linux.do</div>
-                  <div className="mt-1 text-sm text-slate-300">左侧菜单版布局</div>
+            <Card className="h-full rounded-[30px] border border-slate-200/80 bg-white/95 shadow-lg shadow-slate-200/70 backdrop-blur">
+              <CardContent className="flex h-full flex-col gap-6 p-5">
+                <div className="rounded-[26px] bg-[radial-gradient(circle_at_top,_#1e293b,_#0f172a_65%)] px-5 py-6 text-white shadow-inner">
+                  <div className="text-3xl font-semibold tracking-tight">Linux.do</div>
                 </div>
 
                 <nav className="space-y-2">
@@ -60,9 +58,9 @@ export function AppShell() {
                         key={tab.key}
                         to={to}
                         className={[
-                          "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition",
+                          "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all duration-200",
                           active
-                            ? "bg-slate-900 text-white shadow-sm"
+                            ? "bg-slate-900 text-white shadow-sm shadow-slate-300"
                             : "bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900",
                         ].join(" ")}
                       >
@@ -77,10 +75,6 @@ export function AppShell() {
                     );
                   })}
                 </nav>
-
-                <div className="mt-auto rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                  Home 看帖子，Categories 切分类，Profile 管登录。
-                </div>
               </CardContent>
             </Card>
           </aside>
