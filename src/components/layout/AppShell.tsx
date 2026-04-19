@@ -30,7 +30,7 @@ export function AppShell() {
         className={[
           "mx-auto",
           isMobile
-            ? "min-h-screen max-w-[800px] px-3 pb-20 pt-3"
+            ? "min-h-screen max-w-[800px] px-3 pb-20 pt-[calc(env(safe-area-inset-top)+0.75rem)]"
             : "flex max-w-[1680px] gap-4 px-4 py-4",
         ].join(" ")}
       >

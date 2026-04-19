@@ -3,6 +3,7 @@ import { Alert, Avatar, Button, Card, CardContent, Chip, CircularProgress } from
 import type { UIEvent } from "react";
 import type { TopicDetailResponse, TopicItem, TopicPost, TopicTag, TopicUser } from "../../types/topic";
 import { useAvatarSrc } from "../../hooks/useAvatarSrc";
+import { getPlatformCapabilities } from "../../utils/platform";
 import {
   formatAbsoluteTime,
   getTopicTagKey,
@@ -85,42 +86,55 @@ export function TopicDetailPanel({
   }
 
   const tags = getTags(detail, selectedTopic);
+  const { isMobile } = getPlatformCapabilities();
 
   return (
     <Card className="h-full overflow-hidden rounded-2xl border border-slate-200 shadow-md shadow-slate-200/60">
       <CardContent className="h-full overflow-auto p-4" onScroll={handleScroll}>
         <div className="flex min-h-full flex-col">
           <div className="rounded-xl bg-slate-50/70 px-3 py-2.5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 space-y-1.5">
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                {canGoBackTopic && previousTopicId ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    className="min-w-0 rounded-lg px-2 py-0.5 text-xs normal-case"
+                    onClick={onBackTopic}
+                  >
+                    Back #{previousTopicId}
+                  </Button>
+                ) : null}
+                <h2 className="whitespace-normal break-words text-xl font-semibold text-slate-900">
+                  {getTopicTitle(selectedTopic)}
+                </h2>
+              </div>
+
+              <div className={["gap-3", isMobile ? "space-y-2" : "flex items-center justify-between"].join(" ")}>
                 <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
                   {detailAuthor?.name || detailAuthor?.username || "linux.do"}
                 </div>
-                <div className="flex items-center gap-2">
-                  {canGoBackTopic && previousTopicId ? (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      className="min-w-0 rounded-lg px-2 py-0.5 text-xs normal-case"
-                      onClick={onBackTopic}
-                    >
-                      Back #{previousTopicId}
-                    </Button>
-                  ) : null}
-                  <h2 className="whitespace-normal break-words text-xl font-semibold text-slate-900">
-                    {getTopicTitle(selectedTopic)}
-                  </h2>
+
+                <div
+                  className={[
+                    "flex shrink-0 items-center gap-2",
+                    isMobile ? "justify-start" : "justify-end",
+                  ].join(" ")}
+                >
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    className="rounded-lg normal-case"
+                    onClick={onOpenExternalTopic}
+                  >
+                    Open In Browser
+                  </Button>
+                  <Chip
+                    label={`${detail?.posts_count ?? selectedTopic.posts_count ?? 0} replies`}
+                    color="primary"
+                    size="small"
+                  />
                 </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Button size="small" variant="outlined" className="rounded-lg normal-case" onClick={onOpenExternalTopic}>
-                  Open In Browser
-                </Button>
-                <Chip
-                  label={`${detail?.posts_count ?? selectedTopic.posts_count ?? 0} replies`}
-                  color="primary"
-                  size="small"
-                />
               </div>
             </div>
 
