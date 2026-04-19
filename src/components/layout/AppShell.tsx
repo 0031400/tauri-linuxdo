@@ -26,6 +26,10 @@ export function AppShell() {
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
+      {isMobile ? (
+        <div className="pointer-events-none fixed inset-x-0 top-0 z-20 h-[calc(env(safe-area-inset-top)+0.75rem)] bg-slate-100" />
+      ) : null}
+
       <div
         className={[
           "mx-auto",
