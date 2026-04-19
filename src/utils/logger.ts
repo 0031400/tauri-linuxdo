@@ -28,11 +28,11 @@ export async function logLinuxDoCookieError(context: string, reason: unknown) {
   }
 }
 
-export async function logLinuxDoHttpError(context: string, status: number, body: string) {
+export async function logLinuxDoHttpError(context: string, url: string, status: number, body: string) {
   const normalizedBody = body.trim() || "<empty body>";
 
   try {
-    await error(`[${LINUXDO_LOG_SOURCE}] ${context} failed with HTTP ${status}: ${normalizedBody}`);
+    await error(`[${LINUXDO_LOG_SOURCE}] ${context} failed: url=${url} status=${status} body=${normalizedBody}`);
   } catch (logError) {
     console.error("Failed to write linux.do HTTP error log.", logError);
   }

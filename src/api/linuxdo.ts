@@ -88,10 +88,11 @@ async function readErrorBody(response: Response) {
 async function throwHttpError(context: string, response: Response): Promise<never> {
   const body = await readErrorBody(response);
   console.error(`[linuxdo] ${context} failed`, {
+    url: response.url,
     status: response.status,
     body,
   });
-  await logLinuxDoHttpError(context, response.status, body);
+  await logLinuxDoHttpError(context, response.url, response.status, body);
   throw new Error(`HTTP ${response.status}: ${body}`);
 }
 
@@ -157,7 +158,7 @@ export async function fetchLatestTopics(page = 0) {
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchLatestTopicsByCategory", response);
+    await throwHttpError("fetchLatestTopics", response);
   }
 
   return response.json() as Promise<LatestTopicsResponse>;
@@ -189,7 +190,7 @@ export async function fetchLatestTopicsByCategory(categorySlug: string, page = 0
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchTopicCategories", response);
+    await throwHttpError("fetchLatestTopicsByCategory", response);
   }
 
   return response.json() as Promise<LatestTopicsResponse>;
@@ -202,7 +203,7 @@ export async function fetchTopicCategories() {
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchTopicCategoriesByParent", response);
+    await throwHttpError("fetchTopicCategories", response);
   }
 
   const data = (await response.json()) as {
@@ -229,7 +230,7 @@ export async function fetchTopicCategoriesByParent(parentCategoryId: number) {
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchTopicDetail", response);
+    await throwHttpError("fetchTopicCategoriesByParent", response);
   }
 
   const data = (await response.json()) as {
