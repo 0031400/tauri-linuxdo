@@ -1,7 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-const host = "127.0.0.1";
+
+const host = "0.0.0.0";
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -15,14 +16,12 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
-    hmr: host
-      ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
-      : undefined,
+    host: host ,
+    hmr: {
+      protocol: "ws",
+      host: "127.0.0.1",
+      port: 1421,
+    },
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],

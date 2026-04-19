@@ -1,8 +1,8 @@
 use serde::Serialize;
 use std::sync::{Mutex, OnceLock};
-use tauri::{webview::Url, Manager};
-use tauri::WebviewWindow;
 use tauri::webview::PageLoadEvent;
+use tauri::WebviewWindow;
+use tauri::{webview::Url, Manager};
 
 const LOGIN_URL: &str = "https://linux.do/login";
 const BASE_URL: &str = "https://linux.do/";
@@ -75,12 +75,10 @@ async fn open_login_webview(
     webview_window
         .navigate(login_url)
         .map_err(|error| error.to_string())?;
-    let _ = webview_window.set_focus();
     Ok(())
 }
 
 #[tauri::command]
-#[cfg(not(mobile))]
 async fn clear_linuxdo_browsing_data(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(main_window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         main_window
@@ -88,12 +86,6 @@ async fn clear_linuxdo_browsing_data(app: tauri::AppHandle) -> Result<(), String
             .map_err(|error| error.to_string())?;
     }
 
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(mobile)]
-async fn clear_linuxdo_browsing_data(_app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
@@ -142,6 +134,11 @@ fn is_linuxdo_non_login_url(url: &Url) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(tauri_plugin_log::log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -180,4 +177,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

@@ -58,6 +58,7 @@ function extractLinuxDoTopicId(url: string) {
 export function TopicsPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const topicRoutePath = location.pathname;
   const { isMobile } = getPlatformCapabilities();
   const query = new URLSearchParams(location.search);
   const isMinimal = query.get("minimal") === "1";
@@ -363,7 +364,7 @@ export function TopicsPage() {
     }
     const params = new URLSearchParams(location.search);
     params.set("topic", String(topicId));
-    navigate(`/topics?${params.toString()}`);
+    navigate(`${topicRoutePath}?${params.toString()}`);
   };
 
   const goBackTopic = () => {
@@ -376,7 +377,7 @@ export function TopicsPage() {
     if (!previousTopicId) return;
     const params = new URLSearchParams(location.search);
     params.set("topic", String(previousTopicId));
-    navigate(`/topics?${params.toString()}`);
+    navigate(`${topicRoutePath}?${params.toString()}`);
   };
 
   const postContentMap = useMemo(() => {
@@ -413,7 +414,7 @@ export function TopicsPage() {
     const params = new URLSearchParams(location.search);
     params.delete("topic");
     const nextQuery = params.toString();
-    navigate(nextQuery ? `/topics?${nextQuery}` : "/topics");
+    navigate(nextQuery ? `${topicRoutePath}?${nextQuery}` : topicRoutePath);
   };
 
   const selectTopic = (topicId: number) => {
@@ -421,7 +422,7 @@ export function TopicsPage() {
     if (isMobile) {
       const params = new URLSearchParams(location.search);
       params.set("topic", String(topicId));
-      navigate(`/topics?${params.toString()}`);
+      navigate(`${topicRoutePath}?${params.toString()}`);
       return;
     }
     setSelectedId(topicId);
@@ -550,93 +551,94 @@ export function TopicsPage() {
           </div>
         </div>
       ) : (
-        <div className="flex h-[calc(100vh-2rem)]">
-          <div className="min-w-0 flex-[1_1_0%] pr-1.5">
-            <TopicListPanel
-              filteredTopics={visibleTopics}
-              selectedTopic={selectedTopic}
-              users={visibleUsers}
-              loading={loading || searchLoading}
-              error={searchError || error}
-              keyword={keyword}
-              onKeywordChange={setKeyword}
-              onRefresh={() => {
-                if (usingSearch) {
-                  const term = keyword.trim();
-                  if (!term) return;
-                  setSearchLoading(true);
-                  setSearchError("");
-                  void searchTopics(term, 1)
-                    .then((data) => {
-                      const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
-                      setSearchTopicsList(data.topics);
-                      setSearchUsers(nextUsers);
-                      setSearchPage(1);
-                      setSearchHasMore(data.hasMore);
-                      if (isMobile && !hasTopicParam) {
-                        setSelectedId(null);
-                        return;
-                      }
-                      setSelectedId((currentId) => {
-                        if (currentId && data.topics.some((topic) => topic.id === currentId)) {
-                          return currentId;
-                        }
-                        return data.topics[0]?.id ?? null;
-                      });
-                    })
-                    .catch((err: unknown) => {
-                      console.error(err);
-                      setSearchTopicsList([]);
-                      setSearchUsers({});
-                      setSearchError("Failed to search topics.");
-                    })
-                    .finally(() => {
-                      setSearchLoading(false);
-                    });
-                  return;
-                }
-                void refreshTopics();
-              }}
-              onSelectTopic={selectTopic}
-              loadingMore={usingSearch ? searchLoadingMore : loadingMore}
-              hasMore={usingSearch ? searchHasMore : hasMore}
-              onLoadMore={() => {
-                if (usingSearch) {
-                  void loadMoreSearchTopics();
-                  return;
-                }
-                void loadMoreTopics();
-              }}
-            />
-          </div>
+        <div className="flex h-[calc(100vh-2rem)] flex-col gap-2">
+          {hasTopicParam ? (
+            <button
+              type="button"
+              className="self-start rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white"
+              onClick={closeTopicDetail}
+            >
+              Back To List
+            </button>
+          ) : null}
 
-          <div className="min-w-0 flex-[2_1_0%] pl-1.5">
-            <TopicDetailPanel
-              selectedTopic={selectedTopic}
-              detail={detail}
-              detailAuthor={detailAuthor}
-              detailLikeCount={detailLikeCount}
-              detailLoading={detailLoading}
-              detailError={detailError}
-              posts={posts}
-              renderPostContent={(post) => postContentMap.get(post.id) ?? null}
-              loadingMorePosts={loadingMorePosts}
-              hasMorePosts={hasMorePosts}
-              onLoadMorePosts={() => {
-                void loadMoreDetailPosts();
-              }}
-              onRetryDetail={() => {
-                if (!selectedTopic?.id) return;
-                void refreshDetail(selectedTopic.id);
-              }}
-              canGoBackTopic={topicHistoryStack.length > 0}
-              previousTopicId={topicHistoryStack[topicHistoryStack.length - 1] ?? null}
-              onOpenExternalTopic={() => {
-                if (!topicExternalUrl) return;
-                void openUrl(topicExternalUrl);
-              }}
-              onBackTopic={goBackTopic}
-            />
+          <div className="min-h-0 flex-1">
+            {hasTopicParam ? (
+              <TopicDetailPanel
+                selectedTopic={selectedTopic}
+                detail={detail}
+                detailAuthor={detailAuthor}
+                detailLikeCount={detailLikeCount}
+                detailLoading={detailLoading}
+                detailError={detailError}
+                posts={posts}
+                renderPostContent={(post) => postContentMap.get(post.id) ?? null}
+                loadingMorePosts={loadingMorePosts}
+                hasMorePosts={hasMorePosts}
+                onLoadMorePosts={() => {
+                  void loadMoreDetailPosts();
+                }}
+                onRetryDetail={() => {
+                  if (!selectedTopic?.id) return;
+                  void refreshDetail(selectedTopic.id);
+                }}
+                canGoBackTopic={topicHistoryStack.length > 0}
+                previousTopicId={topicHistoryStack[topicHistoryStack.length - 1] ?? null}
+                onOpenExternalTopic={() => {
+                  if (!topicExternalUrl) return;
+                  void openUrl(topicExternalUrl);
+                }}
+                onBackTopic={goBackTopic}
+              />
+            ) : (
+              <TopicListPanel
+                filteredTopics={visibleTopics}
+                selectedTopic={selectedTopic}
+                users={visibleUsers}
+                loading={loading || searchLoading}
+                error={searchError || error}
+                keyword={keyword}
+                onKeywordChange={setKeyword}
+                onRefresh={() => {
+                  if (usingSearch) {
+                    const term = keyword.trim();
+                    if (!term) return;
+                    setSearchLoading(true);
+                    setSearchError("");
+                    void searchTopics(term, 1)
+                      .then((data) => {
+                        const nextUsers = Object.fromEntries(data.users.map((user) => [user.id, user] as const));
+                        setSearchTopicsList(data.topics);
+                        setSearchUsers(nextUsers);
+                        setSearchPage(1);
+                        setSearchHasMore(data.hasMore);
+                        setSelectedId(null);
+                      })
+                      .catch((err: unknown) => {
+                        console.error(err);
+                        setSearchTopicsList([]);
+                        setSearchUsers({});
+                        setSearchError("Failed to search topics.");
+                      })
+                      .finally(() => {
+                        setSearchLoading(false);
+                      });
+                    return;
+                  }
+                  void refreshTopics();
+                }}
+                onSelectTopic={selectTopic}
+                loadingMore={usingSearch ? searchLoadingMore : loadingMore}
+                hasMore={usingSearch ? searchHasMore : hasMore}
+                onLoadMore={() => {
+                  if (usingSearch) {
+                    void loadMoreSearchTopics();
+                    return;
+                  }
+                  void loadMoreTopics();
+                }}
+              />
+            )}
           </div>
         </div>
       )}

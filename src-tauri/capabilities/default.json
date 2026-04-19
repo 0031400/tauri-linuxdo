@@ -8,6 +8,7 @@
   ],
   "permissions": [
     "core:default",
+    "core:webview:allow-clear-all-browsing-data",
     "opener:default",
     {
       "identifier": "http:default",
@@ -20,6 +21,7 @@
         }
       ]
     },
-    "store:default"
+    "store:default",
+    "log:default"
   ]
 }
