@@ -3,14 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   fetchAllTopicCategories,
-  hasLinuxDoSession,
-  hydrateLinuxDoCookieHeader,
-  setLinuxDoCookieHeader,
-  takePendingLinuxDoLoginCookie,
+  syncLinuxDoSession,
 } from "../api/linuxdo";
 import type { TopicCategory } from "../types/topic";
 import { getPlatformCapabilities } from "../utils/platform";
-import { logReceivedLinuxDoCookie } from "../utils/logger";
 
 function buildCategoryPathMap(categories: TopicCategory[]) {
   const categoryById = new Map<number, TopicCategory>();
@@ -48,16 +44,9 @@ export function CategoriesPage() {
       setLoading(true);
       setError("");
       try {
-        await hydrateLinuxDoCookieHeader();
-        const pendingCookieHeader = await takePendingLinuxDoLoginCookie();
-        if (typeof pendingCookieHeader === "string" && pendingCookieHeader.trim()) {
-          await logReceivedLinuxDoCookie(pendingCookieHeader, "categories bootstrap");
-          await setLinuxDoCookieHeader(pendingCookieHeader);
-        }
-
-        const hasSession = await hasLinuxDoSession();
-        setAuthed(hasSession);
-        if (!hasSession) {
+        const session = await syncLinuxDoSession("categories bootstrap");
+        setAuthed(session.loggedIn);
+        if (!session.loggedIn) {
           setCategories([]);
           return;
         }

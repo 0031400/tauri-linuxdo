@@ -1,17 +1,14 @@
 import { Alert, Button, Card, CardContent, CircularProgress } from "@mui/material";
 import { useEffect, useState } from "react";
 import {
-  clearTopicCategoriesCache,
   hasLinuxDoSession,
-  hydrateLinuxDoCookieHeader,
   logoutLinuxDo,
   openLinuxDoLogin,
-  setLinuxDoCookieHeader,
-  takePendingLinuxDoLoginCookie,
+  syncLinuxDoSession,
 } from "../api/linuxdo";
 import { getPlatformCapabilities } from "../utils/platform";
-import { logLinuxDoCookieError, logReceivedLinuxDoCookie } from "../utils/logger";
-import { notifySessionChanged, SESSION_EVENT } from "../utils/session";
+import { logLinuxDoCookieError } from "../utils/logger";
+import { SESSION_EVENT } from "../utils/session";
 
 export function ProfilePage() {
   const { isMobile } = getPlatformCapabilities();
@@ -37,13 +34,8 @@ export function ProfilePage() {
 
     const bootstrap = async () => {
       try {
-        await hydrateLinuxDoCookieHeader();
-        const pendingCookieHeader = await takePendingLinuxDoLoginCookie();
-        if (typeof pendingCookieHeader === "string" && pendingCookieHeader.trim()) {
-          await logReceivedLinuxDoCookie(pendingCookieHeader, "profile bootstrap");
-          await setLinuxDoCookieHeader(pendingCookieHeader);
-        }
-        await refreshSession();
+        const session = await syncLinuxDoSession("profile bootstrap");
+        setLoggedIn(session.loggedIn);
       } finally {
         setOpeningLogin(false);
         setInitializing(false);
@@ -57,16 +49,12 @@ export function ProfilePage() {
     const handleAppFocus = () => {
       void (async () => {
         try {
-          const pendingCookieHeader = await takePendingLinuxDoLoginCookie();
-          if (typeof pendingCookieHeader === "string" && pendingCookieHeader.trim()) {
-            await logReceivedLinuxDoCookie(pendingCookieHeader, "profile focus");
-            await setLinuxDoCookieHeader(pendingCookieHeader);
-          }
+          const session = await syncLinuxDoSession("profile focus");
+          setLoggedIn(session.loggedIn);
         } catch (error) {
           console.error(error);
           await logLinuxDoCookieError("failed to read pending cookie on profile focus", error);
         }
-        await refreshSession();
       })();
     };
 
@@ -97,8 +85,6 @@ export function ProfilePage() {
     setClearingCookie(true);
     try {
       await logoutLinuxDo();
-      clearTopicCategoriesCache();
-      notifySessionChanged();
       setLoggedIn(false);
     } catch (error) {
       console.error(error);

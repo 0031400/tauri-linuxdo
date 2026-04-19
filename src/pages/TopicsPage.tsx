@@ -419,13 +419,9 @@ export function TopicsPage() {
 
   const selectTopic = (topicId: number) => {
     setTopicHistoryStack([]);
-    if (isMobile) {
-      const params = new URLSearchParams(location.search);
-      params.set("topic", String(topicId));
-      navigate(`${topicRoutePath}?${params.toString()}`);
-      return;
-    }
-    setSelectedId(topicId);
+    const params = new URLSearchParams(location.search);
+    params.set("topic", String(topicId));
+    navigate(`${topicRoutePath}?${params.toString()}`);
   };
 
   return (

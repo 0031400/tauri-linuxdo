@@ -11,6 +11,7 @@ import type {
 } from "../types/topic";
 import { BASE_URL } from "../utils/topics";
 import { logLinuxDoHttpError } from "../utils/logger";
+import { notifySessionChanged } from "../utils/session";
 
 const COOKIE_STORE_PATH = "linuxdo.store.json";
 const COOKIE_STORE_KEY = "linuxdo-cookie-header";
@@ -111,13 +112,37 @@ function createAuthHeaders(extraHeaders?: Record<string, string>) {
   };
 }
 
-export async function hasLinuxDoSession() {
+export function hasLinuxDoSession() {
   return /(?:^|;\s*)_t=/.test(getLinuxDoCookieHeader());
 }
 
 export async function logoutLinuxDo() {
   await clearLinuxDoBrowsingData();
   await clearLinuxDoCookieHeader();
+  clearTopicCategoriesCache();
+  notifySessionChanged();
+}
+
+export async function syncLinuxDoSession(source: string) {
+  await hydrateLinuxDoCookieHeader();
+
+  const pendingCookieHeader = await takePendingLinuxDoLoginCookie();
+  const receivedCookie = typeof pendingCookieHeader === "string" && pendingCookieHeader.trim().length > 0;
+
+  if (receivedCookie) {
+    await setLinuxDoCookieHeader(pendingCookieHeader);
+  }
+
+  const loggedIn = hasLinuxDoSession();
+  if (loggedIn) {
+    notifySessionChanged();
+  }
+
+  return {
+    loggedIn,
+    receivedCookie,
+    source,
+  };
 }
 
 export async function fetchLatestTopics(page = 0) {
@@ -132,7 +157,7 @@ export async function fetchLatestTopics(page = 0) {
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchLatestTopics", response);
+    await throwHttpError("fetchLatestTopicsByCategory", response);
   }
 
   return response.json() as Promise<LatestTopicsResponse>;
@@ -164,7 +189,7 @@ export async function fetchLatestTopicsByCategory(categorySlug: string, page = 0
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchLatestTopics", response);
+    await throwHttpError("fetchTopicCategories", response);
   }
 
   return response.json() as Promise<LatestTopicsResponse>;
@@ -177,7 +202,7 @@ export async function fetchTopicCategories() {
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchLatestTopics", response);
+    await throwHttpError("fetchTopicCategoriesByParent", response);
   }
 
   const data = (await response.json()) as {
@@ -204,7 +229,7 @@ export async function fetchTopicCategoriesByParent(parentCategoryId: number) {
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchLatestTopics", response);
+    await throwHttpError("fetchTopicDetail", response);
   }
 
   const data = (await response.json()) as {
@@ -317,7 +342,7 @@ export async function fetchTopicDetail(topicId: number) {
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchLatestTopics", response);
+    await throwHttpError("fetchTopicPosts", response);
   }
 
   return response.json() as Promise<TopicDetailResponse>;
@@ -337,7 +362,7 @@ export async function fetchTopicPosts(topicId: number, postIds: number[]) {
   });
 
   if (!response.ok) {
-    await throwHttpError("fetchLatestTopics", response);
+    await throwHttpError("searchTopics", response);
   }
 
   const data = (await response.json()) as {
